@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Colour tokens from the 21st.dev "Indigo Harbor" theme, stored as RGB
+ * channels so Tailwind opacity modifiers (bg-primary/10) work. Neutrals are
+ * nudged towards the theme's blue so greys do not look muddy on the tinted
+ * page background.
+ */
+@layer base {
+  :root {
+    --background: 243 245 251;
+    --foreground: 11 18 32;
+    --card: 255 255 255;
+    --card-foreground: 11 18 32;
+    --popover: 255 255 255;
+    --popover-foreground: 11 18 32;
+    --primary: 25 57 141;
+    --primary-foreground: 243 245 249;
+    --muted: 238 241 248;
+    --muted-foreground: 91 100 120;
+    --accent: 232 237 251;
+    --accent-foreground: 25 57 141;
+    --destructive: 155 0 51;
+    --destructive-foreground: 255 255 255;
+    --border: 226 230 240;
+    --input: 214 220 233;
+    --ring: 50 79 154;
+    --sidebar: 0 27 60;
+    --sidebar-foreground: 244 245 252;
+    --sidebar-accent: 25 57 141;
+    --radius: 0.625rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Thin, unobtrusive scrollbars for the tape chart and sidebar. */
+  .scroll-slim {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--input)) transparent;
+  }
+  .scroll-slim::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .scroll-slim::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--input));
+    border: 3px solid transparent;
+    border-radius: 9999px;
+    background-clip: content-box;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,21 @@
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+
+# Node
+node_modules/
+.next/
+
+# Local assistant notes; kept out of the repository
+CLAUDE.md
+.claude_phases/
+.claude/
