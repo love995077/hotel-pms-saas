@@ -3,8 +3,10 @@
     uv run celery -A app.worker worker --loglevel=info      (add --pool=solo on Windows)
     uv run celery -A app.worker beat --loglevel=info
 
-The worker also delivers outbound availability pushes (`channel_sync.deliver`),
-which the API queues whenever a reservation changes what can be sold.
+The worker also delivers outbound availability pushes (`channel_sync.deliver`,
+and `channex.push_ari` for Channex connections), which the API queues whenever a
+reservation changes what can be sold, and acknowledges applied Channex booking
+revisions (`channex.ack_revision`).
 
 Every hour, `night_audit.dispatch` looks at each hotel's local clock. Once it is
 past the audit hour there, it queues the audit for the day that has just ended.
@@ -26,7 +28,14 @@ from app.celery_app import celery_app
 from app.config import get_settings
 from app.database import engine, tenant_session
 from app.models import NightAuditRun
-from app.services.channel_sync import DELIVER_TASK, DeliveryFailed, deliver_availability
+from app.services.channel_sync import (
+    CHANNEX_PUSH_TASK,
+    DELIVER_TASK,
+    DeliveryFailed,
+    deliver_availability,
+)
+from app.services.channex.ari import push_ari
+from app.services.channex.bookings import ACK_TASK, ack_revision
 from app.services.night_audit import run_night_audit
 
 logger = logging.getLogger(__name__)
@@ -144,3 +153,49 @@ def deliver_availability_task(
     }
     logger.info("Availability push %s", outcome)
     return outcome
+
+
+@celery_app.task(
+    name=CHANNEX_PUSH_TASK,
+    # Same schedule as the generic push; Channex's 429 rate limit is retried too.
+    autoretry_for=(DeliveryFailed, OSError),
+    retry_backoff=30,
+    retry_backoff_max=3600,
+    retry_jitter=True,
+    max_retries=8,
+)
+def push_channex_ari_task(
+    hotel_id: str, connection_id: str, ranges: list[list[str]], include_rates: bool
+) -> dict[str, Any]:
+    """Push availability (and rates, on a full sync) for some room types to Channex."""
+    result = run_async(
+        push_ari(
+            UUID(hotel_id),
+            UUID(connection_id),
+            [(UUID(r), date.fromisoformat(s), date.fromisoformat(e)) for r, s, e in ranges],
+            include_rates,
+        )
+    )
+    outcome = {
+        "connection_id": connection_id,
+        "room_types": len(ranges),
+        "include_rates": include_rates,
+        "skipped": result is None,
+        "ok": result.ok if result else None,
+        "detail": result.detail if result else None,
+    }
+    logger.info("Channex ARI push %s", outcome)
+    return outcome
+
+
+@celery_app.task(
+    name=ACK_TASK,
+    autoretry_for=(DeliveryFailed, OSError),
+    retry_backoff=30,
+    retry_backoff_max=3600,
+    retry_jitter=True,
+    max_retries=8,
+)
+def ack_channex_revision_task(hotel_id: str, connection_id: str, revision_id: str) -> bool:
+    """Tell Channex a booking revision has been applied."""
+    return run_async(ack_revision(UUID(hotel_id), UUID(connection_id), revision_id))

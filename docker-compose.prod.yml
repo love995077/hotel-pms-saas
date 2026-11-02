@@ -1,0 +1,116 @@
+# Production stack. Only the web front end is published, on loopback, for the
+# host's reverse proxy; Postgres, Redis and the API stay on the private network.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# (or set COMPOSE_FILE=docker-compose.prod.yml in .env, as the server does).
+name: auradesk
+
+x-backend: &backend
+  image: auradesk-backend:latest
+  pull_policy: never
+  restart: unless-stopped
+  environment:
+    ENVIRONMENT: ${ENVIRONMENT:-production}
+    DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+    MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?set MIGRATION_DATABASE_URL in .env}
+    REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+    JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in .env}
+    ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+    CHANNEL_OUTBOUND_ALLOW_PRIVATE_HOSTS: ${CHANNEL_OUTBOUND_ALLOW_PRIVATE_HOSTS:-false}
+    CHANNEX_MODE: ${CHANNEX_MODE:-mock}
+    CHANNEX_BASE_URL: ${CHANNEX_BASE_URL:-https://staging.channex.io/api/v1}
+    CHANNEX_API_KEY: ${CHANNEX_API_KEY:-}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_OWNER_USER:-pms_owner}
+      POSTGRES_PASSWORD: ${POSTGRES_OWNER_PASSWORD:?set POSTGRES_OWNER_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-hotel_pms}
+      PMS_APP_USER: ${POSTGRES_APP_USER:-pms_app}
+      PMS_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?set POSTGRES_APP_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Runs Alembic as the owner role, then exits. The API waits for it.
+  migrate:
+    <<: *backend
+    # The only service that builds the shared backend image.
+    build:
+      context: ./backend
+    pull_policy: build
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    <<: *backend
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  worker:
+    <<: *backend
+    command: ["celery", "-A", "app.worker", "worker", "--loglevel=INFO", "--concurrency=2"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  beat:
+    <<: *backend
+    command: ["celery", "-A", "app.worker", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        BACKEND_URL: http://backend:8000
+    image: auradesk-frontend:latest
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8083}:3000"
+
+volumes:
+  postgres_data:
+  redis_data:

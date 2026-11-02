@@ -9,7 +9,13 @@ from app.models.billing import (
     PaymentMethod,
     TransactionCategory,
 )
-from app.models.channel import ChannelConnection, ChannelWebhookEvent, WebhookEventStatus
+from app.models.channel import (
+    ChannelConnection,
+    ChannelProvider,
+    ChannelWebhookEvent,
+    ChannexRoomMapping,
+    WebhookEventStatus,
+)
 from app.models.guest import Guest
 from app.models.hotel import Hotel
 from app.models.inventory import Room, RoomType
@@ -26,7 +32,9 @@ __all__ = [
     "Base",
     "BookingSource",
     "ChannelConnection",
+    "ChannelProvider",
     "ChannelWebhookEvent",
+    "ChannexRoomMapping",
     "EntryType",
     "Folio",
     "FolioStatus",

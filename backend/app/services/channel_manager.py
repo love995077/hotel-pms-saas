@@ -94,7 +94,7 @@ async def _find_booking(
     )
 
 
-async def _find_or_create_guest(
+async def find_or_create_guest(
     session: AsyncSession, hotel_id: UUID, guest: ChannelGuest
 ) -> tuple[Guest, bool]:
     """Reuse the hotel's existing guest profile when the email matches.
@@ -129,7 +129,7 @@ async def _create_booking(
     if room_type_id is None:
         raise UnprocessableError(f"Unknown room type code '{event.room_type_code}'")
 
-    guest, guest_created = await _find_or_create_guest(session, hotel_id, event.guest)
+    guest, guest_created = await find_or_create_guest(session, hotel_id, event.guest)
     try:
         reservation = await create_reservation(
             session,

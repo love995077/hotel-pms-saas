@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Self-contained server bundle for the production Docker image.
+  output: "standalone",
   // The browser only ever talks to this origin; Next forwards /api to FastAPI.
   // That keeps the backend off the public CORS surface.
   async rewrites() {

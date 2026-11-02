@@ -40,10 +40,26 @@ class Settings(BaseSettings):
     # localhost or private addresses. Refused in production (see below).
     channel_outbound_allow_private_hosts: bool = False
 
+    # Channex.io. "mock" answers every call locally with Channex-shaped success
+    # responses and sends nothing; "live" calls channex_base_url with the key.
+    channex_mode: Literal["mock", "live"] = "mock"
+    channex_base_url: str = "https://staging.channex.io/api/v1"
+    channex_api_key: SecretStr | None = None
+    channex_timeout_seconds: float = Field(default=15, gt=0, le=60)
+
     @model_validator(mode="after")
     def _no_private_outbound_hosts_in_production(self) -> Self:
         if self.environment == "production" and self.channel_outbound_allow_private_hosts:
             raise ValueError("CHANNEL_OUTBOUND_ALLOW_PRIVATE_HOSTS cannot be enabled in production")
+        return self
+
+    @model_validator(mode="after")
+    def _channex_live_is_configured(self) -> Self:
+        if self.channex_mode == "live":
+            if self.channex_api_key is None or not self.channex_api_key.get_secret_value():
+                raise ValueError("CHANNEX_API_KEY is required when CHANNEX_MODE=live")
+            if not self.channex_base_url.startswith("https://"):
+                raise ValueError("CHANNEX_BASE_URL must be an https URL")
         return self
 
 

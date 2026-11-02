@@ -10,6 +10,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from app.celery_app import celery_app
 from app.config import get_settings
 from app.core.security import hash_password
 from app.database import engine, tenant_session
@@ -18,6 +19,7 @@ from app.models import Hotel, User, UserRole
 
 PASSWORD = "correct-horse-battery"  # noqa: S105
 _TENANT_TABLES = (
+    "channex_room_mappings",
     "channel_webhook_events",
     "channel_connections",
     "night_audit_runs",
@@ -48,6 +50,24 @@ class Inventory:
 
 
 TenantFactory = Callable[..., Awaitable[Tenant]]
+QueuedTask = tuple[str, list[Any]]
+
+# Tests must never reach the real broker: a worker running against it (with
+# CHANNEX_MODE=live) would push test data to Channex. Anything that slips past
+# the send_task fixture below lands in Celery's in-process memory transport.
+celery_app.conf.update(broker_url="memory://", result_backend="cache+memory://")
+
+
+@pytest.fixture(autouse=True)
+def celery_tasks(monkeypatch: pytest.MonkeyPatch) -> list[QueuedTask]:
+    """Every task the code under test queues, as (name, args), instead of publishing it."""
+    queued: list[QueuedTask] = []
+
+    def record(name: str, args: list[Any] | None = None, **_: Any) -> None:
+        queued.append((name, list(args or [])))
+
+    monkeypatch.setattr(celery_app, "send_task", record)
+    return queued
 
 
 @pytest.fixture(scope="session", autouse=True)

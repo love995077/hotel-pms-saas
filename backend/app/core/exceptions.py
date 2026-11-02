@@ -23,3 +23,9 @@ class DuplicateBookingError(ConflictError):
 
 class UnprocessableError(DomainError):
     status_code = 422
+
+
+class UpstreamUnavailableError(DomainError):
+    """A service we depend on (a channel manager's API) could not be reached; try later."""
+
+    status_code = 503

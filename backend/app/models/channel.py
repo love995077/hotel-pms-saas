@@ -35,13 +35,37 @@ class WebhookEventStatus(StrEnum):
     REJECTED = "rejected"
 
 
+class ChannelProvider(StrEnum):
+    # Our own signed webhook protocol (see app/api/v1/webhooks.py).
+    GENERIC = "generic"
+    # Channex.io: Channex's booking webhooks in, Channex ARI API calls out.
+    CHANNEX = "channex"
+
+
 class ChannelConnection(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     """Credentials a channel manager uses to deliver webhooks for one hotel."""
 
     __tablename__ = "channel_connections"
-    __table_args__ = (UniqueConstraint("hotel_id", "id"),)
+    __table_args__ = (
+        UniqueConstraint("hotel_id", "id"),
+        CheckConstraint(f"provider IN ({enum_values_sql(ChannelProvider)})", name="provider_valid"),
+        CheckConstraint(
+            "provider <> 'channex' OR external_property_id IS NOT NULL",
+            name="channex_property_required",
+        ),
+        # A hotel is one Channex property, so it has at most one Channex connection.
+        Index(
+            "uq_channel_connections_one_channex",
+            "hotel_id",
+            unique=True,
+            postgresql_where=text("provider = 'channex'"),
+        ),
+    )
 
     name: Mapped[str] = mapped_column(String(100))
+    provider: Mapped[ChannelProvider] = mapped_column(String(20), server_default=text("'generic'"))
+    # The hotel's id on the provider (the Channex property id).
+    external_property_id: Mapped[str | None] = mapped_column(String(100))
     # Public identifier sent with every webhook; unique across all hotels.
     key_id: Mapped[str] = mapped_column(String(40), unique=True)
     # Shared HMAC secret. Kept readable because verifying a signature needs it.
@@ -88,3 +112,39 @@ class ChannelWebhookEvent(UUIDPrimaryKeyMixin, TenantMixin, Base):
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class ChannexRoomMapping(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
+    """Which Channex room type (and rate plan) one of our room types is sold as."""
+
+    __tablename__ = "channex_room_mappings"
+    __table_args__ = (
+        UniqueConstraint("hotel_id", "id"),
+        UniqueConstraint(
+            "hotel_id", "connection_id", "room_type_id", name="uq_channex_room_mappings_room_type"
+        ),
+        UniqueConstraint(
+            "hotel_id",
+            "connection_id",
+            "channex_room_type_id",
+            name="uq_channex_room_mappings_channex_room_type",
+        ),
+        ForeignKeyConstraint(
+            ["hotel_id", "connection_id"],
+            ["channel_connections.hotel_id", "channel_connections.id"],
+            name="fk_channex_room_mappings_connection_id",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["hotel_id", "room_type_id"],
+            ["room_types.hotel_id", "room_types.id"],
+            name="fk_channex_room_mappings_room_type_id",
+            ondelete="CASCADE",
+        ),
+    )
+
+    connection_id: Mapped[UUID] = mapped_column(Uuid)
+    room_type_id: Mapped[UUID] = mapped_column(Uuid)
+    channex_room_type_id: Mapped[str] = mapped_column(String(100))
+    # Rates are pushed to this plan by a full sync. Null: rates are managed in Channex.
+    channex_rate_plan_id: Mapped[str | None] = mapped_column(String(100))

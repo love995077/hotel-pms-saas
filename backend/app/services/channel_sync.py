@@ -7,6 +7,11 @@ commits, one Celery task per outbound connection is queued. Each task reads the
 availability afresh when it runs, so a retried delivery never sends numbers
 that have since gone stale.
 
+Generic connections get one signed webhook per room type (`channel_sync.deliver`).
+Channex connections get one `channex.push_ari` task per transaction covering
+every room type it touched, because Channex rate-limits ARI calls per property;
+that task is defined in app.services.channex.ari.
+
 Nothing is queued for a transaction that rolls back.
 """
 
@@ -22,7 +27,7 @@ from typing import Any
 from uuid import UUID
 
 import httpx
-from sqlalchemy import event, select
+from sqlalchemy import event, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -31,13 +36,14 @@ from app.config import get_settings
 from app.core.outbound import OutboundUrlError, resolve_public_address, validate_outbound_url
 from app.core.security import sign_webhook
 from app.database import TenantSession, tenant_session
-from app.models import ChannelConnection, RoomType
+from app.models import ChannelConnection, ChannelProvider, RoomType
 from app.services.availability import MAX_RANGE_NIGHTS, get_availability
 from app.services.folios import hotel_today
 
 logger = logging.getLogger(__name__)
 
 DELIVER_TASK = "channel_sync.deliver"
+CHANNEX_PUSH_TASK = "channex.push_ari"
 EVENT_AVAILABILITY = "availability.updated"
 EVENT_PING = "ping"
 USER_AGENT = "HotelPMS-ChannelSync/1.0"
@@ -65,9 +71,12 @@ class DeliveryResult:
 @dataclass(frozen=True, slots=True)
 class _PendingPush:
     connection_id: UUID
+    provider: ChannelProvider
     room_type_id: UUID
     start: date
     end: date
+    # Channex only: also send the room type's rate (a full sync does).
+    include_rates: bool = False
 
 
 # --- queueing -------------------------------------------------------------------
@@ -93,15 +102,19 @@ async def request_availability_push(
     if end <= start:
         return
     origin = session.info.get(_ORIGIN_KEY)
-    connection_ids = await session.scalars(
-        select(ChannelConnection.id).where(
-            ChannelConnection.is_active, ChannelConnection.outbound_url.is_not(None)
+    connections = await session.execute(
+        select(ChannelConnection.id, ChannelConnection.provider).where(
+            ChannelConnection.is_active,
+            or_(
+                ChannelConnection.outbound_url.is_not(None),
+                ChannelConnection.provider == ChannelProvider.CHANNEX,
+            ),
         )
     )
     pending: list[_PendingPush] = session.info.setdefault(_PENDING_KEY, [])
     pending.extend(
-        _PendingPush(connection_id, room_type_id, start, end)
-        for connection_id in connection_ids
+        _PendingPush(connection_id, ChannelProvider(provider), room_type_id, start, end)
+        for connection_id, provider in connections
         if connection_id != origin
     )
 
@@ -121,9 +134,11 @@ def _merge(pending: list[_PendingPush]) -> list[_PendingPush]:
             if current is None
             else _PendingPush(
                 push.connection_id,
+                push.provider,
                 push.room_type_id,
                 min(current.start, push.start),
                 max(current.end, push.end),
+                current.include_rates or push.include_rates,
             )
         )
     return list(merged.values())
@@ -158,6 +173,33 @@ def enqueue_delivery(
         )
 
 
+def enqueue_channex_push(
+    hotel_id: UUID,
+    connection_id: UUID,
+    ranges: list[tuple[UUID, date, date]],
+    include_rates: bool,
+) -> None:
+    """Queue one Channex ARI push covering several room types. Never raises."""
+    try:
+        celery_app.send_task(
+            CHANNEX_PUSH_TASK,
+            args=[
+                str(hotel_id),
+                str(connection_id),
+                [
+                    [str(room_type_id), s.isoformat(), e.isoformat()]
+                    for room_type_id, s, e in ranges
+                ],
+                include_rates,
+            ],
+            retry=True,
+            retry_policy={"max_retries": 2, "interval_start": 0.2, "interval_step": 0.5},
+        )
+    except Exception:
+        # As for enqueue_delivery: "Sync now" re-sends everything.
+        logger.exception("Could not queue Channex ARI push for connection %s", connection_id)
+
+
 def _run_in_background(job: Callable[[], None]) -> None:
     """Run a blocking job off the event loop, or inline when there is no loop."""
     try:
@@ -174,7 +216,11 @@ def _queue_pending_pushes(session: Session) -> None:
     hotel_id = session.info.get("hotel_id")
     if not pending or not isinstance(hotel_id, UUID):
         return
+    channex: dict[UUID, list[_PendingPush]] = {}
     for push in _merge(pending):
+        if push.provider == ChannelProvider.CHANNEX:
+            channex.setdefault(push.connection_id, []).append(push)
+            continue
         # Publishing to the broker is blocking network I/O.
         _run_in_background(
             partial(
@@ -184,6 +230,16 @@ def _queue_pending_pushes(session: Session) -> None:
                 push.room_type_id,
                 push.start,
                 push.end,
+            )
+        )
+    for connection_id, pushes in channex.items():
+        _run_in_background(
+            partial(
+                enqueue_channex_push,
+                hotel_id,
+                connection_id,
+                [(push.room_type_id, push.start, push.end) for push in pushes],
+                any(push.include_rates for push in pushes),
             )
         )
 
@@ -350,7 +406,9 @@ async def request_full_sync(session: AsyncSession, connection: ChannelConnection
     end = start + timedelta(days=get_settings().channel_outbound_sync_days)
     room_type_ids = (await session.scalars(select(RoomType.id).where(RoomType.is_active))).all()
     pending: list[_PendingPush] = session.info.setdefault(_PENDING_KEY, [])
+    is_channex = connection.provider == ChannelProvider.CHANNEX
     pending.extend(
-        _PendingPush(connection.id, room_type_id, start, end) for room_type_id in room_type_ids
+        _PendingPush(connection.id, connection.provider, room_type_id, start, end, is_channex)
+        for room_type_id in room_type_ids
     )
     return len(room_type_ids)

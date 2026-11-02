@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, mo
 
 from app.config import get_settings
 from app.core.outbound import MAX_URL_LENGTH, validate_outbound_url
-from app.models import BookingSource, ReservationStatus, WebhookEventStatus
+from app.models import BookingSource, ChannelProvider, ReservationStatus, WebhookEventStatus
 from app.schemas.base import CreateSchema, PatchSchema, ReadSchema
 from app.schemas.inventory import Money
 from app.schemas.reservation import validate_stay
@@ -69,8 +69,23 @@ class WebhookResult(BaseModel):
 # --- connection management ----------------------------------------------------
 
 
+# The hotel's id on the provider: a Channex property id is a UUID.
+PropertyId = Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9-]+$")]
+
+
 class ChannelConnectionCreate(CreateSchema):
     name: str = Field(min_length=1, max_length=100)
+    provider: ChannelProvider = ChannelProvider.GENERIC
+    # Required for Channex: the property id Channex shows for this hotel.
+    external_property_id: PropertyId | None = None
+
+    @model_validator(mode="after")
+    def _property_id_matches_provider(self) -> Self:
+        if self.provider == ChannelProvider.CHANNEX and self.external_property_id is None:
+            raise ValueError("external_property_id is required for a Channex connection")
+        if self.provider == ChannelProvider.GENERIC and self.external_property_id is not None:
+            raise ValueError("external_property_id is only used by Channex connections")
+        return self
 
 
 class ChannelConnectionUpdate(PatchSchema):
@@ -80,6 +95,8 @@ class ChannelConnectionUpdate(PatchSchema):
     is_active: bool | None = None
     # Where availability updates are pushed. Null (or blank) turns pushing off.
     outbound_url: str | None = Field(default=None, max_length=MAX_URL_LENGTH)
+    # Channex only: for when the property id changes (for example going live).
+    external_property_id: PropertyId | None = None
 
     @field_validator("outbound_url")
     @classmethod
@@ -94,6 +111,8 @@ class ChannelConnectionUpdate(PatchSchema):
 
 class ChannelConnectionRead(ReadSchema):
     name: str
+    provider: ChannelProvider
+    external_property_id: str | None
     key_id: str
     is_active: bool
     outbound_url: str | None
