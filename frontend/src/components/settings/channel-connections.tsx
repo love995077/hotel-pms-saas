@@ -44,23 +44,28 @@ import { cn } from "@/lib/utils";
 
 const WEBHOOK_PATH = "/api/v1/webhooks/channel-manager";
 
-const EVENT_STATUS: Record<string, string> = {
+export const EVENT_STATUS: Record<string, string> = {
   processed: "bg-emerald-50 text-emerald-700 ring-emerald-200",
   duplicate: "bg-slate-100 text-slate-600 ring-slate-200",
   rejected: "bg-rose-50 text-rose-700 ring-rose-200",
 };
 
+/** Keys for our own signed webhook protocol. Channex has its own tab (channex-settings.tsx). */
 export function ChannelConnections() {
   const connections = useChannelConnections(true);
   const events = useChannelEvents(true);
   const [creating, setCreating] = useState(false);
+
+  const keys = connections.data?.filter((connection) => connection.provider === "generic") ?? [];
+  const keyIds = new Set(keys.map((connection) => connection.id));
+  const deliveries = events.data?.filter((event) => keyIds.has(event.connection_id)) ?? [];
 
   // The origin is only known in the browser; rendering it on the server would not match.
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
   const webhookUrl = origin + WEBHOOK_PATH;
 
-  const names = new Map(connections.data?.map((connection) => [connection.id, connection.name]));
+  const names = new Map(keys.map((connection) => [connection.id, connection.name]));
 
   return (
     <div className="space-y-5">
@@ -94,7 +99,7 @@ export function ChannelConnections() {
               Try again
             </Button>
           </div>
-        ) : connections.data.length === 0 ? (
+        ) : keys.length === 0 ? (
           <div className="flex flex-col items-center px-6 py-14 text-center">
             <span className="flex size-12 items-center justify-center rounded-xl bg-accent text-accent-foreground">
               <KeyRound className="size-6" strokeWidth={1.75} />
@@ -111,7 +116,7 @@ export function ChannelConnections() {
           </div>
         ) : (
           <ul className="divide-y divide-border/70">
-            {connections.data.map((connection) => (
+            {keys.map((connection) => (
               <ConnectionRow key={connection.id} connection={connection} />
             ))}
           </ul>
@@ -173,13 +178,13 @@ export function ChannelConnections() {
           </div>
         ) : events.isError ? (
           <p className="px-5 py-8 text-center text-sm text-muted-foreground">{events.error.message}</p>
-        ) : events.data.length === 0 ? (
+        ) : deliveries.length === 0 ? (
           <p className="px-5 py-10 text-center text-sm text-muted-foreground">
             Nothing received yet. Deliveries appear here as soon as your channel manager sends one.
           </p>
         ) : (
           <ul className="divide-y divide-border/70">
-            {events.data.map((event) => (
+            {deliveries.map((event) => (
               <li key={event.id} className="flex items-start gap-3 px-4 py-3 sm:px-5">
                 <span
                   className={cn(

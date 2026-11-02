@@ -5,6 +5,8 @@ import type {
   ChannelConnection,
   ChannelConnectionCreated,
   ChannelWebhookEvent,
+  ChannexMapping,
+  ChannexMappingInput,
   ChargeInput,
   CurrentUser,
   DashboardStats,
@@ -456,6 +458,7 @@ export function useUpdateChannelConnection() {
         name?: string;
         is_active?: boolean;
         outbound_url?: string | null;
+        external_property_id?: string;
       };
     }
   >({
@@ -465,6 +468,41 @@ export function useUpdateChannelConnection() {
         body: changes,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["channel-connections"] }),
+  });
+}
+
+/** Create the hotel's Channex connection (at most one per hotel). The secret is returned only here. */
+export function useCreateChannexConnection() {
+  const queryClient = useQueryClient();
+  return useMutation<ChannelConnectionCreated, ApiError, { name: string; external_property_id: string }>({
+    mutationFn: (body) =>
+      api<ChannelConnectionCreated>("/channel-connections", {
+        method: "POST",
+        body: { ...body, provider: "channex" },
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["channel-connections"] }),
+  });
+}
+
+export function useChannexMappings(connectionId: string | undefined) {
+  return useQuery({
+    queryKey: ["channex-mappings", connectionId],
+    queryFn: ({ signal }) =>
+      api<ChannexMapping[]>(`/channel-connections/${connectionId}/channex-mappings`, { signal }),
+    enabled: connectionId !== undefined,
+  });
+}
+
+/** Replace the whole mapping list. */
+export function useSaveChannexMappings(connectionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<ChannexMapping[], ApiError, ChannexMappingInput[]>({
+    mutationFn: (mappings) =>
+      api<ChannexMapping[]>(`/channel-connections/${connectionId}/channex-mappings`, {
+        method: "PUT",
+        body: mappings,
+      }),
+    onSuccess: (saved) => queryClient.setQueryData(["channex-mappings", connectionId], saved),
   });
 }
 

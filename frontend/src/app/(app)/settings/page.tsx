@@ -1,16 +1,17 @@
 "use client";
 
-import { Building2, KeyRound, Layers } from "lucide-react";
+import { Building2, Cable, KeyRound, Layers } from "lucide-react";
 import { useState } from "react";
 
 import { InventorySettings } from "@/components/inventory/inventory-settings";
 import { ChannelConnections } from "@/components/settings/channel-connections";
+import { ChannexSettings } from "@/components/settings/channex-settings";
 import { HotelProfile } from "@/components/settings/hotel-profile";
 import { Segmented } from "@/components/ui/field";
 import { useCurrentUser } from "@/lib/queries";
 import { can } from "@/lib/roles";
 
-type Section = "inventory" | "channels" | "profile";
+type Section = "inventory" | "channex" | "channels" | "profile";
 
 export default function SettingsPage() {
   const [section, setSection] = useState<Section>("inventory");
@@ -34,6 +35,14 @@ export default function SettingsPage() {
               ),
             },
             {
+              value: "channex",
+              label: (
+                <>
+                  <Cable className="size-3.5" /> Channex
+                </>
+              ),
+            },
+            {
               value: "channels",
               label: (
                 <>
@@ -52,7 +61,9 @@ export default function SettingsPage() {
           ]}
         />
       )}
-      {canManage && section === "channels" ? (
+      {canManage && section === "channex" ? (
+        <ChannexSettings />
+      ) : canManage && section === "channels" ? (
         <ChannelConnections />
       ) : canManage && section === "profile" ? (
         <HotelProfile />

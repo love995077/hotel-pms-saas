@@ -265,9 +265,15 @@ export interface PaymentInput {
   reference: string | null;
 }
 
+/** "generic": our signed webhook protocol. "channex": Channex.io's API. */
+export type ChannelProvider = "generic" | "channex";
+
 export interface ChannelConnection {
   id: string;
   name: string;
+  provider: ChannelProvider;
+  /** The hotel's Channex property id; null for generic connections. */
+  external_property_id: string | null;
   key_id: string;
   is_active: boolean;
   created_at: string;
@@ -290,6 +296,18 @@ export interface OutboundTestResult {
 export interface ChannelConnectionCreated extends ChannelConnection {
   /** Returned once, when the connection is created. */
   signing_secret: string;
+}
+
+/** Which Channex room type (and optionally rate plan) one of our room types is sold as. */
+export interface ChannexMappingInput {
+  room_type_id: string;
+  channex_room_type_id: string;
+  /** Rates are pushed to this plan by "Sync now"; null leaves rates to Channex. */
+  channex_rate_plan_id: string | null;
+}
+
+export interface ChannexMapping extends ChannexMappingInput {
+  id: string;
 }
 
 export interface ChannelWebhookEvent {

@@ -27,7 +27,7 @@ function messageFrom(body: unknown, fallback: string): string {
 type Query = Record<string, string | number | boolean | null | undefined>;
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   query?: Query;
   body?: unknown;
   /** Skip the Authorization header and the sign-out-on-401 behaviour. */
