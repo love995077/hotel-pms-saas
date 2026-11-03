@@ -33,6 +33,8 @@ class WebhookEventStatus(StrEnum):
     # A redelivery of something already applied; nothing changed.
     DUPLICATE = "duplicate"
     REJECTED = "rejected"
+    # Authenticated, but not a booking (for example Channex's test message).
+    IGNORED = "ignored"
 
 
 class ChannelProvider(StrEnum):

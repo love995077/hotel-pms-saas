@@ -388,35 +388,84 @@ def enqueue_ack(hotel_id: UUID, connection_id: UUID, revision_id: str) -> None:
 
 def _log_entry(
     context: ChannexContext,
-    webhook: ChannexWebhook,
+    body: Any,
     status: WebhookEventStatus,
     *,
+    webhook: ChannexWebhook | None = None,
     revision: ChannexBookingRevision | None = None,
     reservation_id: UUID | None = None,
     detail: str | None = None,
 ) -> ChannelWebhookEvent:
-    booking_id = revision.booking_id if revision else webhook.payload.get("booking_id")
+    booking_id: Any
+    if revision is not None:
+        booking_id = revision.booking_id
+    elif webhook is not None:
+        booking_id = webhook.payload.get("booking_id")
+    else:
+        booking_id = None
     return ChannelWebhookEvent(
         hotel_id=context.hotel_id,
         connection_id=context.connection_id,
-        event_type=webhook.event,
+        event_type=webhook.event if webhook else "invalid",
         channel=booking_source(revision.ota_name if revision else None).value,
-        external_booking_id=str(booking_id or "unknown")[:100],
+        external_booking_id=str(booking_id or "-")[:100],
         status=status,
         detail=detail,
         reservation_id=reservation_id,
-        payload=webhook.model_dump(mode="json"),
+        # The body exactly as received, so an unexpected shape can be inspected.
+        payload=body if isinstance(body, dict) else {"body": body},
     )
 
 
-async def handle_webhook(context: ChannexContext, webhook: ChannexWebhook) -> ChannexOutcome:
-    """Apply one verified Channex webhook and record what happened.
+async def _record(context: ChannexContext, entry: ChannelWebhookEvent) -> None:
+    async with tenant_session(context.hotel_id) as session:
+        session.add(entry)
 
-    Events other than bookings (ARI echoes, messages, reviews) are ignored. A
-    rejected booking rolls back completely; its log entry is then written in a
-    transaction of its own so staff can see it.
+
+def _summarise(exc: ValidationError) -> str:
+    """Where the body was wrong, without echoing its values."""
+    problems = [
+        f"{'.'.join(str(part) for part in error['loc']) or 'body'}: {error['msg']}"
+        for error in exc.errors()
+    ]
+    return "Unexpected webhook body: " + "; ".join(problems)
+
+
+async def handle_webhook(context: ChannexContext, body: Any) -> ChannexOutcome:
+    """Apply one authenticated Channex webhook and record what happened.
+
+    Every authenticated delivery is logged, whatever it contained: a body that
+    is not a webhook at all as rejected, and events other than bookings
+    (Channex's test message, messages, reviews) as ignored. A rejected booking
+    rolls back completely; its log entry is then written in a transaction of
+    its own so staff can see it.
     """
+    try:
+        webhook = ChannexWebhook.model_validate(body)
+    except ValidationError as exc:
+        detail = _summarise(exc)
+        logger.warning(
+            "Channex webhook for connection %s refused: %s", context.connection_id, detail
+        )
+        await _record(
+            context, _log_entry(context, body, WebhookEventStatus.REJECTED, detail=detail)
+        )
+        raise UnprocessableError(detail) from exc
+
     if webhook.event not in BOOKING_EVENTS:
+        logger.info(
+            "Channex %r event for connection %s ignored", webhook.event, context.connection_id
+        )
+        await _record(
+            context,
+            _log_entry(
+                context,
+                body,
+                WebhookEventStatus.IGNORED,
+                webhook=webhook,
+                detail="Not a booking event; nothing to do",
+            ),
+        )
         return ChannexOutcome("ignored")
 
     revision: ChannexBookingRevision | None = None
@@ -432,26 +481,28 @@ async def handle_webhook(context: ChannexContext, webhook: ChannexWebhook) -> Ch
             session.add(
                 _log_entry(
                     context,
-                    webhook,
+                    body,
                     WebhookEventStatus.DUPLICATE
                     if outcome.result == "unchanged"
                     else WebhookEventStatus.PROCESSED,
+                    webhook=webhook,
                     revision=revision,
                     reservation_id=outcome.reservations[0].id if outcome.reservations else None,
                     detail=None if outcome.reservations else "No reservation for this booking",
                 )
             )
     except DomainError as exc:
-        async with tenant_session(context.hotel_id) as session:
-            session.add(
-                _log_entry(
-                    context,
-                    webhook,
-                    WebhookEventStatus.REJECTED,
-                    revision=revision,
-                    detail=exc.detail,
-                )
-            )
+        await _record(
+            context,
+            _log_entry(
+                context,
+                body,
+                WebhookEventStatus.REJECTED,
+                webhook=webhook,
+                revision=revision,
+                detail=exc.detail,
+            ),
+        )
         raise
 
     # Committed: now Channex may forget it. Publishing is blocking network I/O.

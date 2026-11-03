@@ -9,7 +9,15 @@ from decimal import Decimal
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, TypeAdapter, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+)
 
 from app.models import ReservationStatus
 
@@ -29,14 +37,38 @@ class _Lenient(BaseModel):
 
 
 class ChannexWebhook(_Lenient):
-    """The envelope Channex POSTs to a webhook URL."""
+    """The envelope Channex POSTs to a webhook URL.
 
-    event: str = Field(min_length=1, max_length=40)
+    Deliberately forgiving: Channex's "Send test message" and event types we do
+    not handle come in other shapes, and refusing them would hide them from the
+    delivery log. Only booking events need more, and the booking revision is
+    validated strictly when it is read.
+    """
+
+    event: str = "unknown"
     property_id: str | None = None
-    timestamp: str | None = None
+    timestamp: Any = None
     # booking_id, revision_id and property_id; with "send data" enabled on the
     # Channex webhook, also the booking revision itself.
     payload: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("event", mode="before")
+    @classmethod
+    def _event_name(cls, value: Any) -> str:
+        name = "" if value is None else str(value).strip()
+        # Stored in a 40-character column.
+        return name[:40] if name else "unknown"
+
+    @field_validator("property_id", mode="before")
+    @classmethod
+    def _property_id(cls, value: Any) -> str | None:
+        return None if value is None else str(value)
+
+    @field_validator("payload", mode="before")
+    @classmethod
+    def _payload_object(cls, value: Any) -> dict[str, Any]:
+        # The raw body is kept in the delivery log, so nothing is lost here.
+        return value if isinstance(value, dict) else {}
 
 
 class ChannexOccupancy(_Lenient):

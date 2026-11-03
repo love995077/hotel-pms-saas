@@ -1,4 +1,5 @@
-from typing import Annotated
+import json
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 
@@ -81,8 +82,8 @@ async def verify_channex_token(
     x_channex_key: Annotated[str | None, Header()] = None,
     x_channex_token: Annotated[str | None, Header()] = None,
 ) -> ChannexContext:
-    """Channex cannot sign webhooks, so the Channex webhook is configured with
-    two custom headers: the connection's key id and its secret."""
+    """The Channex webhook is configured with two custom headers: the
+    connection's key id and its secret."""
     context = None
     if x_channex_key and x_channex_token:
         context = await authenticate_channex_webhook(x_channex_key, x_channex_token)
@@ -94,15 +95,26 @@ async def verify_channex_token(
 @router.post(
     "/channex",
     response_model=ChannexWebhookResult,
+    # The body is read by hand, after authentication, so that a delivery in a
+    # shape we did not expect is logged instead of vanishing as a bare 422.
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {"application/json": {"schema": ChannexWebhook.model_json_schema()}},
+        }
+    },
     responses={
         401: {"description": "Missing or wrong X-Channex-Key / X-Channex-Token"},
         409: {"description": "No availability, or the booking is already in house"},
-        422: {"description": "Malformed revision, unmapped room type or another property"},
+        422: {
+            "description": "Not a webhook body, malformed revision, unmapped room type "
+            "or another property"
+        },
         503: {"description": "The revision had to be fetched and Channex was unreachable"},
     },
 )
 async def channex_webhook(
-    webhook: ChannexWebhook,
+    request: Request,
     context: Annotated[ChannexContext, Depends(verify_channex_token)],
 ) -> ChannexWebhookResult:
     """Receive a Channex.io webhook and apply booking revisions as reservations.
@@ -114,11 +126,17 @@ async def channex_webhook(
     - `X-Channex-Token`: the connection's secret
 
     A revision is applied as the booking's whole state, so redeliveries are
-    harmless. Each room becomes one reservation. Non-booking events are
-    answered 200 with `result: "ignored"`. Applied revisions are acknowledged
-    to Channex in the background.
+    harmless. Each room becomes one reservation. Non-booking events (such as
+    Channex's test message) are answered 200 with `result: "ignored"`. Every
+    authenticated delivery is listed under Settings > Channex. Applied
+    revisions are acknowledged to Channex in the background.
     """
-    outcome = await handle_webhook(context, webhook)
+    raw = await request.body()
+    try:
+        body: Any = json.loads(raw)
+    except ValueError:
+        body = raw.decode("utf-8", errors="replace")[:2000]
+    outcome = await handle_webhook(context, body)
     return ChannexWebhookResult(
         result=outcome.result,
         booking_id=outcome.revision.booking_id if outcome.revision else None,

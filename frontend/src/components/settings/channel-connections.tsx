@@ -48,6 +48,8 @@ export const EVENT_STATUS: Record<string, string> = {
   processed: "bg-emerald-50 text-emerald-700 ring-emerald-200",
   duplicate: "bg-slate-100 text-slate-600 ring-slate-200",
   rejected: "bg-rose-50 text-rose-700 ring-rose-200",
+  // Authenticated but not a booking, e.g. Channex's test message.
+  ignored: "bg-sky-50 text-sky-700 ring-sky-200",
 };
 
 /** Keys for our own signed webhook protocol. Channex has its own tab (channex-settings.tsx). */

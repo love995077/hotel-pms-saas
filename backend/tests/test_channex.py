@@ -512,7 +512,57 @@ async def test_non_booking_events_are_ignored(
         "revision_id": None,
         "reservations": [],
     }
-    assert await events(client, tenant) == []
+    (event,) = await events(client, tenant)
+    assert (event["status"], event["event_type"]) == ("ignored", "message")
+    assert event["payload"] == {"event": "message", "payload": {"text": "hi"}}
+    assert acks == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"event": "test", "timestamp": 1793700000, "payload": None},
+        {"event": "test", "property_id": 12345, "payload": ["not", "an", "object"]},
+        {"message": "Test webhook"},
+    ],
+    ids=["numeric-timestamp-null-payload", "odd-types", "no-event"],
+)
+async def test_test_messages_in_any_shape_are_answered_and_logged(
+    client: AsyncClient, tenant: Tenant, channex: Channex, acks: list[Any], body: dict[str, Any]
+) -> None:
+    """Channex's "Send test message" must show up as a delivery, not vanish as a 422."""
+    response = await send(client, channex, body)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["result"] == "ignored"
+    (event,) = await events(client, tenant)
+    assert event["status"] == "ignored"
+    assert event["payload"] == body  # kept exactly as received
+    assert await reservations(client, tenant) == []
+
+
+async def test_a_body_that_is_not_a_webhook_is_rejected_and_logged(
+    client: AsyncClient, tenant: Tenant, channex: Channex
+) -> None:
+    as_list = await send(client, channex, [{"event": "booking_new"}])  # type: ignore[arg-type]
+    not_json = await client.post(
+        WEBHOOK,
+        content=b"<xml>nope</xml>",
+        headers={
+            "Content-Type": "application/xml",
+            "X-Channex-Key": channex.key_id,
+            "X-Channex-Token": channex.secret,
+        },
+    )
+
+    assert (as_list.status_code, not_json.status_code) == (422, 422)
+    assert "Unexpected webhook body" in as_list.json()["detail"]
+    logged = await events(client, tenant)
+    assert [(e["status"], e["event_type"]) for e in logged] == [
+        ("rejected", "invalid"),
+        ("rejected", "invalid"),
+    ]
+    assert {"body": "<xml>nope</xml>"} in [e["payload"] for e in logged]
 
 
 # --- inbound security ----------------------------------------------------------------

@@ -316,7 +316,7 @@ export interface ChannelWebhookEvent {
   event_type: string;
   channel: string;
   external_booking_id: string;
-  status: "processed" | "duplicate" | "rejected" | string;
+  status: "processed" | "duplicate" | "rejected" | "ignored" | string;
   detail: string | null;
   reservation_id: string | null;
   received_at: string;
