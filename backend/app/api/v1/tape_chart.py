@@ -47,7 +47,9 @@ async def tape_chart(
     rooms: dict[UUID, list[TapeChartRoom]] = defaultdict(list)
     for room in await db.scalars(select(Room).where(Room.is_active).order_by(Room.room_number)):
         rooms[room.room_type_id].append(
-            TapeChartRoom(id=room.id, room_number=room.room_number, floor=room.floor)
+            TapeChartRoom(
+                id=room.id, room_number=room.room_number, floor_or_zone=room.floor_or_zone
+            )
         )
 
     room_types = await db.scalars(

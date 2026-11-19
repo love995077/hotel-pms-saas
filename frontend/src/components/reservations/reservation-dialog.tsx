@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FormError, Segmented, Select } from "@/components/ui/field";
 import { formatStay, nightsBetween } from "@/lib/dates";
+import { unitGroup, useTerms } from "@/lib/terminology";
 import {
   type ReservationAction,
   useCurrentUser,
@@ -84,6 +85,7 @@ function Loaded({
     .sort((a, b) => byRoomNumber.compare(a.room_number, b.room_number));
   const folio = useFolio(reservation.id);
   const action = useReservationAction();
+  const words = useTerms();
   const [confirmingCancel, setConfirmingCancel] = useState(false);
 
   const nights = nightsBetween(reservation.check_in_date, reservation.check_out_date);
@@ -199,7 +201,7 @@ function Loaded({
 
             <div className="rounded-lg border border-border bg-muted/40 p-3.5">
               <label htmlFor="assigned-room" className="text-[13px] font-medium">
-                Room
+                {words.unit}
               </label>
               {canFrontOffice && (isConfirmed || isInHouse) ? (
                 <>
@@ -216,7 +218,7 @@ function Loaded({
                         {
                           onSuccess: (updated) =>
                             toast.success(
-                              `Room ${rooms.find((room) => room.id === updated.room_id)?.room_number ?? ""} assigned`,
+                              `${words.unit} ${rooms.find((room) => room.id === updated.room_id)?.room_number ?? ""} assigned`,
                             ),
                         },
                       );
@@ -226,12 +228,14 @@ function Loaded({
                     {rooms.map((room) => (
                       <option key={room.id} value={room.id}>
                         {room.room_number}
-                        {room.floor ? ` · Floor ${room.floor}` : ""}
+                        {` · ${unitGroup(room, words)}`}
                       </option>
                     ))}
                   </Select>
                   {reservation.room_id === null && (
-                    <p className="mt-2 text-xs text-muted-foreground">A room must be assigned before check-in.</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      A {words.unitLower} must be assigned before check-in.
+                    </p>
                   )}
                 </>
               ) : (

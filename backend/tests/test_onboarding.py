@@ -59,6 +59,15 @@ async def test_register_creates_hotel_and_owner_who_can_log_in(
     assert me.json()["email"] == "owner@example.com"
 
 
+async def test_register_stores_the_property_type(client: AsyncClient, slug: str) -> None:
+    response = await client.post(REGISTER_URL, json=_payload(slug, property_type="apartment"))
+    assert response.status_code == 201, response.text
+
+    token = (await login(client, slug, "owner@example.com")).json()["access_token"]
+    hotel = await client.get("/api/v1/hotel", headers={"Authorization": f"Bearer {token}"})
+    assert hotel.json()["property_type"] == "apartment"
+
+
 async def test_register_rejects_a_taken_hotel_code(client: AsyncClient, slug: str) -> None:
     assert (await client.post(REGISTER_URL, json=_payload(slug))).status_code == 201
 

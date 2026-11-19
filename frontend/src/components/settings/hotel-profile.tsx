@@ -7,8 +7,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Field, FormError, SubmitButton, Textarea } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PropertyTypePicker } from "@/components/settings/property-type-picker";
 import { useHotel, useUpdateHotel } from "@/lib/queries";
-import type { Hotel, HotelInput } from "@/lib/types";
+import { termsFor } from "@/lib/terminology";
+import type { Hotel, HotelUpdate, PropertyType } from "@/lib/types";
 
 const GSTIN_PATTERN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
@@ -29,9 +31,10 @@ export function HotelProfile() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Hotel profile</h2>
+        <h2 className="text-xl font-semibold tracking-tight">Property profile</h2>
         <p className="mt-1 max-w-prose text-sm text-muted-foreground">
-          These details are printed at the top of every invoice. A GST tax invoice needs your GSTIN, address and state.
+          Your property type sets the words used across the app. The other details are printed at the top of every
+          invoice; a GST tax invoice needs your GSTIN, address and state.
         </p>
       </div>
 
@@ -39,7 +42,7 @@ export function HotelProfile() {
         <div
           className="h-96 animate-pulse rounded-xl border border-border bg-card"
           aria-busy="true"
-          aria-label="Loading hotel profile"
+          aria-label="Loading property profile"
         />
       ) : hotel.isError ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card px-6 py-16 text-center shadow-soft">
@@ -63,6 +66,7 @@ function ProfileForm({ hotel }: { hotel: Hotel }) {
     () =>
       Object.fromEntries(FIELDS.map((field) => [field, hotel[field] ?? ""])) as Record<(typeof FIELDS)[number], string>,
   );
+  const [propertyType, setPropertyType] = useState<PropertyType | null>(hotel.property_type);
   const [submitted, setSubmitted] = useState(false);
 
   const bind = (field: (typeof FIELDS)[number]) => ({
@@ -74,14 +78,17 @@ function ProfileForm({ hotel }: { hotel: Hotel }) {
   const gstin = values.gstin.trim().toUpperCase();
   const gstinError =
     gstin !== "" && !GSTIN_PATTERN.test(gstin) ? "Enter the 15-character GSTIN exactly as on your certificate." : null;
-  const dirty = FIELDS.some((field) => values[field].trim() !== (hotel[field] ?? ""));
+  const dirty =
+    FIELDS.some((field) => values[field].trim() !== (hotel[field] ?? "")) || propertyType !== hotel.property_type;
+  const words = termsFor(propertyType);
   const missing = [!hotel.gstin && "GSTIN", !hotel.address && "address", !hotel.state && "state"].filter(Boolean);
 
   function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setSubmitted(true);
     if (gstinError) return;
-    const changes: HotelInput = {
+    const changes: HotelUpdate = {
+      ...(propertyType !== null ? { property_type: propertyType } : {}),
       name: values.name.trim(),
       gstin: gstin || null,
       address: values.address.trim() || null,
@@ -91,7 +98,7 @@ function ProfileForm({ hotel }: { hotel: Hotel }) {
       phone: values.phone.trim() || null,
       email: values.email.trim() || null,
     };
-    update.mutate(changes, { onSuccess: () => toast.success("Hotel profile saved") });
+    update.mutate(changes, { onSuccess: () => toast.success("Property profile saved") });
   }
 
   return (
@@ -111,14 +118,25 @@ function ProfileForm({ hotel }: { hotel: Hotel }) {
         )}
         <FormError message={update.error?.message} />
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Hotel name" hint="The legal or trade name to print on invoices.">
+        <fieldset className="space-y-2.5">
+          <legend className="text-sm font-medium">Property type</legend>
+          <PropertyTypePicker value={propertyType} onChange={setPropertyType} className="lg:grid-cols-5" />
+          <p className="text-xs text-muted-foreground">
+            {propertyType === null ? "Not chosen yet, so the app uses hotel terms. " : ""}
+            Units are called <span className="font-medium text-foreground">{words.unitsLower}</span>, grouped by{" "}
+            <span className="font-medium text-foreground">{words.group.toLowerCase()}</span>. You can change this
+            anytime; nothing else changes.
+          </p>
+        </fieldset>
+
+        <div className="grid gap-4 border-t border-border pt-5 sm:grid-cols-2">
+          <Field label="Property name" hint="The legal or trade name to print on invoices.">
             {(field) => <Input {...field} {...bind("name")} minLength={2} maxLength={200} required />}
           </Field>
           <Field
             label="GSTIN"
             error={submitted ? gstinError : null}
-            hint="Leave empty if the hotel is not GST-registered."
+            hint="Leave empty if the property is not GST-registered."
           >
             {(field) => (
               <Input

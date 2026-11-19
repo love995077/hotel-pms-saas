@@ -2,6 +2,7 @@ from typing import Annotated, ClassVar
 
 from pydantic import AfterValidator, EmailStr, Field
 
+from app.models import PropertyType
 from app.schemas.base import PatchSchema, ReadSchema
 
 # Two-digit state code, ten-character PAN, entity number, "Z", check character.
@@ -29,6 +30,8 @@ class HotelUpdate(PatchSchema):
     postal_code: Optional = Field(default=None, max_length=10)
     phone: Optional = Field(default=None, max_length=32)
     email: EmailStr | None = None
+    # Not nullable once chosen: there is no going back to "not asked yet".
+    property_type: PropertyType | None = None
 
 
 class HotelRead(ReadSchema):
@@ -43,3 +46,5 @@ class HotelRead(ReadSchema):
     email: str | None
     timezone: str
     currency: str
+    # Null until the owner has chosen; treat it as a hotel.
+    property_type: PropertyType | None

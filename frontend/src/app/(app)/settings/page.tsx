@@ -54,7 +54,7 @@ export default function SettingsPage() {
               value: "profile",
               label: (
                 <>
-                  <Building2 className="size-3.5" /> Hotel profile
+                  <Building2 className="size-3.5" /> Property profile
                 </>
               ),
             },

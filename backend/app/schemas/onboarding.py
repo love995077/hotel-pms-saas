@@ -2,6 +2,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+from app.models import PropertyType
 from app.schemas.base import CreateSchema
 
 MIN_PASSWORD_LENGTH = 12
@@ -14,6 +15,8 @@ class RegisterRequest(CreateSchema):
     email: EmailStr
     full_name: str = Field(min_length=2, max_length=200)
     password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=1024)
+    # Asked first on the sign-up form; if left out, asked after the first sign-in.
+    property_type: PropertyType | None = None
 
 
 class RegisterResponse(BaseModel):

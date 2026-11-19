@@ -12,13 +12,21 @@ import getpass
 import os
 
 from app.database import engine
+from app.models import PropertyType
 from app.schemas.onboarding import MIN_PASSWORD_LENGTH
 from app.services.onboarding import register_hotel
 
 
-async def create_hotel(name: str, slug: str, email: str, full_name: str, password: str) -> None:
+async def create_hotel(
+    name: str,
+    slug: str,
+    email: str,
+    full_name: str,
+    password: str,
+    property_type: PropertyType | None,
+) -> None:
     try:
-        hotel = await register_hotel(name, slug, email, full_name, password)
+        hotel = await register_hotel(name, slug, email, full_name, password, property_type)
     finally:
         await engine.dispose()
     print(f"Created hotel {slug!r} ({hotel.id}) with owner {email}")
@@ -30,12 +38,20 @@ def main() -> None:
     parser.add_argument("--slug", required=True)
     parser.add_argument("--email", required=True)
     parser.add_argument("--full-name", required=True)
+    parser.add_argument(
+        "--property-type",
+        choices=[member.value for member in PropertyType],
+        help="If left out, the owner is asked on first sign-in",
+    )
     args = parser.parse_args()
 
     password = os.environ.get("PMS_OWNER_PASSWORD") or getpass.getpass("Owner password: ")
     if len(password) < MIN_PASSWORD_LENGTH:
         parser.error(f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
-    asyncio.run(create_hotel(args.name, args.slug, args.email, args.full_name, password))
+    property_type = PropertyType(args.property_type) if args.property_type else None
+    asyncio.run(
+        create_hotel(args.name, args.slug, args.email, args.full_name, password, property_type)
+    )
 
 
 if __name__ == "__main__":

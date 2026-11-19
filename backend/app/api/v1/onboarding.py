@@ -15,5 +15,6 @@ async def register(payload: RegisterRequest) -> RegisterResponse:
         email=payload.email,
         full_name=payload.full_name,
         password=payload.password,
+        property_type=payload.property_type,
     )
     return RegisterResponse.model_validate(hotel)

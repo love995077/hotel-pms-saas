@@ -89,7 +89,12 @@ async def seed(password: str) -> None:
             session.add(room_type)
             await session.flush()
             session.add_all(
-                Room(hotel_id=hotel_id, room_type_id=room_type.id, room_number=n, floor=n[0])
+                Room(
+                    hotel_id=hotel_id,
+                    room_type_id=room_type.id,
+                    room_number=n,
+                    floor_or_zone=f"Floor {n[0]}",
+                )
                 for n in numbers
             )
             room_types.append(room_type)

@@ -11,11 +11,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { PropertyTypePicker } from "@/components/settings/property-type-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { APP_NAME } from "@/lib/constants";
 import { useRegisterHotel } from "@/lib/queries";
+import type { PropertyType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth";
 
@@ -47,6 +49,7 @@ export default function RegisterPage() {
   const rememberHotel = useAuthStore((state) => state.rememberHotel);
   const register = useRegisterHotel();
 
+  const [propertyType, setPropertyType] = useState<PropertyType>("hotel");
   const [hotelName, setHotelName] = useState("");
   const [slug, setSlug] = useState("");
   // The code follows the hotel name until the user edits it themselves.
@@ -72,7 +75,14 @@ export default function RegisterPage() {
     setSubmitted(true);
     if (slugError || !passwordOk) return;
     register.mutate(
-      { hotel_name: hotelName.trim(), slug, email: email.trim(), full_name: fullName.trim(), password },
+      {
+        hotel_name: hotelName.trim(),
+        property_type: propertyType,
+        slug,
+        email: email.trim(),
+        full_name: fullName.trim(),
+        password,
+      },
       {
         onSuccess: (hotel) => {
           rememberHotel(hotel.slug);
@@ -140,7 +150,7 @@ export default function RegisterPage() {
         {/* Form */}
         <form className="flex flex-col justify-center gap-6 p-7 sm:p-10" onSubmit={onSubmit}>
           <div>
-            <h1 className="text-[22px] font-semibold tracking-tight">Register your hotel</h1>
+            <h1 className="text-[22px] font-semibold tracking-tight">Register your property</h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
               One short form. You&apos;ll be the owner and can invite your team later.
             </p>
@@ -156,9 +166,14 @@ export default function RegisterPage() {
             </div>
           )}
 
+          <fieldset className="flex flex-col gap-2.5">
+            <legend className="mb-2.5 text-sm font-medium">What type of property are you managing?</legend>
+            <PropertyTypePicker value={propertyType} onChange={setPropertyType} />
+          </fieldset>
+
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="hotel-name">Hotel name</Label>
+              <Label htmlFor="hotel-name">Property name</Label>
               <Input
                 id="hotel-name"
                 value={hotelName}

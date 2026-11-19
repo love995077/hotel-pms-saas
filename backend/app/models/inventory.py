@@ -59,5 +59,7 @@ class Room(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
 
     room_type_id: Mapped[UUID] = mapped_column(Uuid, index=True)
     room_number: Mapped[str] = mapped_column(String(20))
-    floor: Mapped[str | None] = mapped_column(String(20))
+    # A floor, zone, dormitory or block ("1st Floor", "Poolside", "Dorm A");
+    # the UI derives one from the room number when it is blank.
+    floor_or_zone: Mapped[str | None] = mapped_column(String(50))
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))

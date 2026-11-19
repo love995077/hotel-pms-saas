@@ -22,9 +22,11 @@ import {
   useCreateRoomType,
   useDeleteRoom,
   useDeleteRoomType,
+  useRooms,
   useUpdateRoom,
   useUpdateRoomType,
 } from "@/lib/queries";
+import { type Terms, unitGroup, useTerms } from "@/lib/terminology";
 import type { Room, RoomType } from "@/lib/types";
 
 // Each dialog is mounted only while it is open, so its form state always
@@ -79,6 +81,7 @@ function suggestCode(name: string): string {
 }
 
 export function RoomTypeDialog({ roomType, onClose }: DialogProps & { roomType: RoomType | null }) {
+  const words = useTerms();
   const create = useCreateRoomType();
   const update = useUpdateRoomType();
   const mutation = roomType ? update : create;
@@ -112,7 +115,7 @@ export function RoomTypeDialog({ roomType, onClose }: DialogProps & { roomType: 
     };
     const onSuccess = (saved: RoomType) => {
       toast.success(roomType ? `${saved.name} updated` : `${saved.name} added`, {
-        description: roomType ? undefined : "Now add the rooms of this type.",
+        description: roomType ? undefined : `Now add the ${words.unitsLower} of this type.`,
       });
       onClose();
     };
@@ -125,7 +128,9 @@ export function RoomTypeDialog({ roomType, onClose }: DialogProps & { roomType: 
       <DialogContent>
         <form onSubmit={onSubmit} className="flex min-h-0 flex-col">
           <DialogHeader>
-            <DialogTitle>{roomType ? "Edit room type" : "Add a room type"}</DialogTitle>
+            <DialogTitle>
+              {roomType ? `Edit ${words.unitType.toLowerCase()}` : `Add a ${words.unitType.toLowerCase()}`}
+            </DialogTitle>
             <DialogDescription>
               A category you sell, such as Standard or Deluxe. Bookings are taken against it.
             </DialogDescription>
@@ -239,7 +244,7 @@ export function RoomTypeDialog({ roomType, onClose }: DialogProps & { roomType: 
                   checked={isActive}
                   onChange={setIsActive}
                   label="Available for sale"
-                  description="Turn off to stop selling this room type without losing its history."
+                  description={`Turn off to stop selling this ${words.unitType.toLowerCase()} without losing its history.`}
                 />
               </div>
             )}
@@ -250,7 +255,7 @@ export function RoomTypeDialog({ roomType, onClose }: DialogProps & { roomType: 
                 Cancel
               </Button>
             </DialogClose>
-            <SubmitButton pending={mutation.isPending}>{roomType ? "Save changes" : "Add room type"}</SubmitButton>
+            <SubmitButton pending={mutation.isPending}>{roomType ? "Save changes" : `Add ${words.unitType.toLowerCase()}`}</SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -265,6 +270,8 @@ function parseRoomNumbers(value: string): string[] {
 
 export function AddRoomsDialog({ roomType, onClose }: DialogProps & { roomType: RoomType }) {
   const createRooms = useCreateRooms();
+  const words = useTerms();
+  const groups = useGroupNames();
   const [numbers, setNumbers] = useState("");
   const [floor, setFloor] = useState("");
   const [rejected, setRejected] = useState<string | null>(null);
@@ -277,14 +284,14 @@ export function AddRoomsDialog({ roomType, onClose }: DialogProps & { roomType: 
     if (parsed.length === 0 || tooLong) return;
     setRejected(null);
     createRooms.mutate(
-      { room_type_id: roomType.id, floor: floor.trim() || null, room_numbers: parsed },
+      { room_type_id: roomType.id, floor_or_zone: floor.trim() || null, room_numbers: parsed },
       {
         onSuccess: ({ created, failed }) => {
           if (created.length > 0) {
             toast.success(
               created.length === 1
-                ? `Room ${created[0].room_number} added`
-                : `${created.length} rooms added to ${roomType.name}`,
+                ? `${words.unit} ${created[0].room_number} added`
+                : `${created.length} ${words.unitsLower} added to ${roomType.name}`,
             );
           }
           if (failed.length === 0) return onClose();
@@ -292,8 +299,8 @@ export function AddRoomsDialog({ roomType, onClose }: DialogProps & { roomType: 
           setNumbers(failed.map((item) => item.room_number).join(", "));
           setRejected(
             failed.length === 1
-              ? `Room ${failed[0].room_number} was not added: ${failed[0].message}.`
-              : `${failed.length} rooms were not added (${failed.map((item) => item.room_number).join(", ")}): ${failed[0].message}.`,
+              ? `${words.unit} ${failed[0].room_number} was not added: ${failed[0].message}.`
+              : `${failed.length} ${words.unitsLower} were not added (${failed.map((item) => item.room_number).join(", ")}): ${failed[0].message}.`,
           );
         },
       },
@@ -305,19 +312,21 @@ export function AddRoomsDialog({ roomType, onClose }: DialogProps & { roomType: 
       <DialogContent>
         <form onSubmit={onSubmit} className="flex min-h-0 flex-col">
           <DialogHeader>
-            <DialogTitle>Add rooms to {roomType.name}</DialogTitle>
+            <DialogTitle>
+              Add {words.unitsLower} to {roomType.name}
+            </DialogTitle>
             <DialogDescription>
-              The physical rooms guests are assigned to. Add one, or several at once.
+              The physical {words.unitsLower} guests are assigned to. Add one, or several at once.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
             <FormError className="mb-4" message={rejected ?? createRooms.error?.message} />
-            <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
+            <div className="grid gap-4 sm:grid-cols-[1fr_11rem]">
               <Field
-                label="Room numbers"
+                label={`${words.unit} numbers`}
                 hint={
                   parsed.length > 1
-                    ? `${parsed.length} rooms will be added.`
+                    ? `${parsed.length} ${words.unitsLower} will be added.`
                     : "Separate several with commas or spaces: 101, 102, 103"
                 }
                 error={tooLong ? `"${tooLong}" is longer than 20 characters.` : null}
@@ -334,17 +343,13 @@ export function AddRoomsDialog({ roomType, onClose }: DialogProps & { roomType: 
                   />
                 )}
               </Field>
-              <Field label="Floor (optional)">
-                {(field) => (
-                  <Input
-                    {...field}
-                    value={floor}
-                    onChange={(event) => setFloor(event.target.value)}
-                    placeholder="1"
-                    maxLength={20}
-                  />
-                )}
-              </Field>
+              <GroupField
+                words={words}
+                groups={groups}
+                value={floor}
+                onChange={setFloor}
+                derived={parsed.length > 0 ? unitGroup({ room_number: parsed[0], floor_or_zone: null }, words) : null}
+              />
             </div>
           </DialogBody>
           <DialogFooter>
@@ -354,7 +359,7 @@ export function AddRoomsDialog({ roomType, onClose }: DialogProps & { roomType: 
               </Button>
             </DialogClose>
             <SubmitButton pending={createRooms.isPending}>
-              {parsed.length > 1 ? `Add ${parsed.length} rooms` : "Add room"}
+              {parsed.length > 1 ? `Add ${parsed.length} ${words.unitsLower}` : `Add ${words.unitLower}`}
             </SubmitButton>
           </DialogFooter>
         </form>
@@ -370,8 +375,10 @@ export function EditRoomDialog({
   onDelete,
 }: DialogProps & { room: Room; roomTypes: RoomType[]; onDelete: () => void }) {
   const update = useUpdateRoom();
+  const words = useTerms();
+  const groups = useGroupNames();
   const [number, setNumber] = useState(room.room_number);
-  const [floor, setFloor] = useState(room.floor ?? "");
+  const [floor, setFloor] = useState(room.floor_or_zone ?? "");
   const [roomTypeId, setRoomTypeId] = useState(room.room_type_id);
   const [isActive, setIsActive] = useState(room.is_active);
 
@@ -382,14 +389,14 @@ export function EditRoomDialog({
         id: room.id,
         changes: {
           room_number: number.trim(),
-          floor: floor.trim() || null,
+          floor_or_zone: floor.trim() || null,
           room_type_id: roomTypeId,
           is_active: isActive,
         },
       },
       {
         onSuccess: (saved) => {
-          toast.success(`Room ${saved.room_number} updated`);
+          toast.success(`${words.unit} ${saved.room_number} updated`);
           onClose();
         },
       },
@@ -401,13 +408,17 @@ export function EditRoomDialog({
       <DialogContent>
         <form onSubmit={onSubmit} className="flex min-h-0 flex-col">
           <DialogHeader>
-            <DialogTitle>Room {room.room_number}</DialogTitle>
-            <DialogDescription>Rename it, move it to another room type, or take it out of service.</DialogDescription>
+            <DialogTitle>
+              {words.unit} {room.room_number}
+            </DialogTitle>
+            <DialogDescription>
+              Rename it, regroup it, move it to another {words.unitType.toLowerCase()}, or mark it out of order.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
             <FormError className="mb-4" message={update.error?.message} />
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Room number">
+              <Field label={`${words.unit} number`}>
                 {(field) => (
                   <Input
                     {...field}
@@ -419,12 +430,14 @@ export function EditRoomDialog({
                   />
                 )}
               </Field>
-              <Field label="Floor (optional)">
-                {(field) => (
-                  <Input {...field} value={floor} onChange={(event) => setFloor(event.target.value)} maxLength={20} />
-                )}
-              </Field>
-              <Field label="Room type" className="col-span-2">
+              <GroupField
+                words={words}
+                groups={groups}
+                value={floor}
+                onChange={setFloor}
+                derived={unitGroup({ room_number: number || room.room_number, floor_or_zone: null }, words)}
+              />
+              <Field label={words.unitType} className="col-span-2">
                 {(field) => (
                   <Select
                     {...field}
@@ -445,7 +458,7 @@ export function EditRoomDialog({
                 checked={isActive}
                 onChange={setIsActive}
                 label="In service"
-                description="Turn off for renovation or long repairs. The room stops counting towards what you can sell."
+                description={`Turn off for maintenance or long repairs. The ${words.unitLower} shows as out of order on the property map and stops counting towards what you can sell.`}
               />
             </div>
           </DialogBody>
@@ -457,7 +470,7 @@ export function EditRoomDialog({
               className="text-destructive hover:bg-destructive/10 hover:text-destructive sm:mr-auto"
             >
               <Trash2 className="size-4" />
-              Delete room
+              Delete {words.unitLower}
             </Button>
             <DialogClose asChild>
               <Button type="button" variant="outline">
@@ -477,7 +490,8 @@ export function DeleteDialog({ target, onClose }: DialogProps & { target: { room
   const deleteRoom = useDeleteRoom();
   const isType = "roomType" in target;
   const mutation = isType ? deleteRoomType : deleteRoom;
-  const label = isType ? target.roomType.name : `Room ${target.room.room_number}`;
+  const words = useTerms();
+  const label = isType ? target.roomType.name : `${words.unit} ${target.room.room_number}`;
 
   function onConfirm() {
     mutation.mutate(isType ? target.roomType.id : target.room.id, {
@@ -496,8 +510,8 @@ export function DeleteDialog({ target, onClose }: DialogProps & { target: { room
           <DialogDescription>
             This can&apos;t be undone.{" "}
             {isType
-              ? "A room type that has rooms or reservations can't be deleted; stop selling it instead."
-              : "A room that has reservations can't be deleted; take it out of service instead."}
+              ? `A ${words.unitType.toLowerCase()} that has ${words.unitsLower} or reservations can't be deleted; stop selling it instead.`
+              : `A ${words.unitLower} that has reservations can't be deleted; take it out of service instead.`}
           </DialogDescription>
         </DialogHeader>
         <DialogBody className={mutation.isError ? undefined : "py-2"}>
@@ -521,5 +535,53 @@ export function DeleteDialog({ target, onClose }: DialogProps & { target: { room
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** The groups already in use, offered as suggestions so spellings stay consistent. */
+function useGroupNames(): string[] {
+  const rooms = useRooms().data ?? [];
+  return Array.from(new Set(rooms.map((room) => room.floor_or_zone).filter((name): name is string => !!name))).sort();
+}
+
+function GroupField({
+  words,
+  groups,
+  value,
+  onChange,
+  derived,
+}: {
+  words: Terms;
+  groups: string[];
+  value: string;
+  onChange: (value: string) => void;
+  /** What a blank value is shown as. */
+  derived: string | null;
+}) {
+  const listId = useId();
+  return (
+    <Field
+      label={`${words.group} (optional)`}
+      hint={value.trim() === "" && derived ? `Blank shows as "${derived}".` : undefined}
+    >
+      {(field) => (
+        <>
+          <Input
+            {...field}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={words.groupShort === "Floor" ? "1st Floor" : `${words.groupShort} A`}
+            maxLength={50}
+            list={listId}
+            autoComplete="off"
+          />
+          <datalist id={listId}>
+            {groups.map((group) => (
+              <option key={group} value={group} />
+            ))}
+          </datalist>
+        </>
+      )}
+    </Field>
   );
 }

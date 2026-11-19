@@ -17,7 +17,7 @@ from app.models.channel import (
     WebhookEventStatus,
 )
 from app.models.guest import Guest
-from app.models.hotel import Hotel
+from app.models.hotel import Hotel, PropertyType
 from app.models.inventory import Room, RoomType
 from app.models.reservation import (
     INVENTORY_HOLDING_STATUSES,
@@ -44,6 +44,7 @@ __all__ = [
     "InvoiceSequence",
     "NightAuditRun",
     "PaymentMethod",
+    "PropertyType",
     "Reservation",
     "ReservationStatus",
     "Room",

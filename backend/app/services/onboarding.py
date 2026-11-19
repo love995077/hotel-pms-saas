@@ -5,10 +5,17 @@ from sqlalchemy.exc import IntegrityError
 from app.core.exceptions import ConflictError
 from app.core.security import hash_password
 from app.database import tenant_session
-from app.models import Hotel, User, UserRole
+from app.models import Hotel, PropertyType, User, UserRole
 
 
-async def register_hotel(name: str, slug: str, email: str, full_name: str, password: str) -> Hotel:
+async def register_hotel(
+    name: str,
+    slug: str,
+    email: str,
+    full_name: str,
+    password: str,
+    property_type: PropertyType | None = None,
+) -> Hotel:
     """Create a hotel and its first (owner) user in one transaction.
 
     Runs as the ordinary runtime role. No tenant exists yet, so the id is
@@ -20,7 +27,7 @@ async def register_hotel(name: str, slug: str, email: str, full_name: str, passw
     # not hold a database connection.
     hashed_password = hash_password(password)
     async with tenant_session(hotel_id) as session:
-        hotel = Hotel(id=hotel_id, name=name, slug=slug)
+        hotel = Hotel(id=hotel_id, name=name, slug=slug, property_type=property_type)
         session.add(hotel)
         try:
             await session.flush()

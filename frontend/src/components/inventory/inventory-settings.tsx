@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { AddRoomsDialog, DeleteDialog, EditRoomDialog, RoomTypeDialog } from "@/components/inventory/inventory-dialogs";
 import { Button } from "@/components/ui/button";
 import { useCurrentUser, useRooms, useRoomTypes } from "@/lib/queries";
+import { type Terms, unitGroup, useTerms } from "@/lib/terminology";
 import type { Room, RoomType } from "@/lib/types";
 import { cn, formatMoney } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ export function InventorySettings() {
 
   const [dialog, setDialog] = useState<OpenDialog | null>(null);
   const close = () => setDialog(null);
+  const words = useTerms();
 
   const roomsByType = useMemo(() => {
     const grouped = new Map<string, Room[]>();
@@ -52,13 +54,14 @@ export function InventorySettings() {
         <div className="mr-auto">
           <h2 className="text-xl font-semibold tracking-tight">Inventory</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            The room types you sell and the physical rooms behind them.
+            The {words.unitTypes.toLowerCase()} you sell and the {words.unitsLower} behind them, grouped by{" "}
+            {words.group.toLowerCase()}.
           </p>
         </div>
         {canManage && types && types.length > 0 && (
           <Button onClick={() => setDialog({ kind: "room-type", roomType: null })}>
             <Plus className="size-4" />
-            Add room type
+            Add {words.unitType.toLowerCase()}
           </Button>
         )}
       </div>
@@ -96,24 +99,24 @@ export function InventorySettings() {
           <span className="flex size-12 items-center justify-center rounded-xl bg-accent text-accent-foreground">
             <BedDouble className="size-6" strokeWidth={1.75} />
           </span>
-          <h3 className="mt-4 text-base font-semibold">Set up your rooms</h3>
+          <h3 className="mt-4 text-base font-semibold">Set up your {words.unitsLower}</h3>
           <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
-            Start with a room type such as Standard or Deluxe, then add the rooms of that type. They appear on the
-            tape chart straight away.
+            Start with a {words.unitType.toLowerCase()} such as Standard or Deluxe, then add the {words.unitsLower} of
+            that type. They appear on the tape chart and the property map straight away.
           </p>
           {canManage && (
             <Button className="mt-5" onClick={() => setDialog({ kind: "room-type", roomType: null })}>
               <Plus className="size-4" />
-              Add your first room type
+              Add your first {words.unitType.toLowerCase()}
             </Button>
           )}
         </div>
       ) : (
         <>
           <dl className="grid grid-cols-3 gap-3">
-            <Stat icon={Layers} label="Room types" value={types.length} />
-            <Stat icon={DoorOpen} label="Rooms" value={allRooms.length} />
-            <Stat icon={BedDouble} label="Sellable rooms" value={sellable} />
+            <Stat icon={Layers} label={words.unitTypes} value={types.length} />
+            <Stat icon={DoorOpen} label={words.units} value={allRooms.length} />
+            <Stat icon={BedDouble} label={`Sellable ${words.unitsLower}`} value={sellable} />
           </dl>
 
           <div className="space-y-4">
@@ -123,6 +126,7 @@ export function InventorySettings() {
                 roomType={roomType}
                 rooms={roomsByType.get(roomType.id) ?? []}
                 canManage={canManage}
+                words={words}
                 onOpen={setDialog}
               />
             ))}
@@ -164,11 +168,13 @@ function RoomTypeCard({
   roomType,
   rooms,
   canManage,
+  words,
   onOpen,
 }: {
   roomType: RoomType;
   rooms: Room[];
   canManage: boolean;
+  words: Terms;
   onOpen: (dialog: OpenDialog) => void;
 }) {
   const occupancy =
@@ -205,7 +211,7 @@ function RoomTypeCard({
               {occupancy}
             </span>
             <span>
-              {rooms.length} {rooms.length === 1 ? "room" : "rooms"}
+              {rooms.length} {rooms.length === 1 ? words.unitLower : words.unitsLower}
             </span>
           </p>
           {roomType.description && (
@@ -216,7 +222,7 @@ function RoomTypeCard({
           <div className="flex items-center gap-1">
             <Button variant="outline" size="sm" onClick={() => onOpen({ kind: "add-rooms", roomType })}>
               <Plus className="size-3.5" />
-              Add rooms
+              Add {words.unitsLower}
             </Button>
             <Button
               variant="ghost"
@@ -243,7 +249,8 @@ function RoomTypeCard({
 
       {rooms.length === 0 ? (
         <p className="px-5 py-6 text-[13px] text-muted-foreground">
-          No rooms yet. {canManage ? "Add the rooms of this type so they can be booked and assigned." : ""}
+          No {words.unitsLower} yet.{" "}
+          {canManage ? `Add the ${words.unitsLower} of this type so they can be booked and assigned.` : ""}
         </p>
       ) : (
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(6.75rem,1fr))] gap-2 p-4 sm:p-5">
@@ -252,7 +259,7 @@ function RoomTypeCard({
               <>
                 <span className="block text-sm font-semibold leading-tight tabular-nums">{room.room_number}</span>
                 <span className="mt-0.5 block truncate text-[11px] leading-tight text-muted-foreground">
-                  {!room.is_active ? "Out of service" : room.floor ? `Floor ${room.floor}` : " "}
+                  {!room.is_active ? "Out of order" : unitGroup(room, words)}
                 </span>
               </>
             );
@@ -265,7 +272,7 @@ function RoomTypeCard({
                 {canManage ? (
                   <button
                     type="button"
-                    aria-label={`Edit room ${room.room_number}`}
+                    aria-label={`Edit ${words.unitLower} ${room.room_number}`}
                     onClick={() => onOpen({ kind: "edit-room", room })}
                     className={cn(
                       chipClass,

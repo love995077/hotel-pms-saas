@@ -24,6 +24,8 @@ interface ReservationBlockProps {
   roomTypeCode: string;
   /** Shown on the unassigned row: the stay still needs a room number. */
   unassigned?: boolean;
+  /** The property's word for a unit, mid-sentence: "room", "bed". */
+  unitLower?: string;
   onOpen: () => void;
 }
 
@@ -33,6 +35,7 @@ export function ReservationBlock({
   roomLabel,
   roomTypeCode,
   unassigned = false,
+  unitLower = "room",
   onOpen,
 }: ReservationBlockProps) {
   const source = SOURCE_STYLES[reservation.source];
@@ -51,7 +54,7 @@ export function ReservationBlock({
         <button
           type="button"
           onClick={onOpen}
-          aria-label={`${reservation.guest_name}, ${formatStay(reservation.check_in_date, reservation.check_out_date)}, ${source.label}, ${STATUS_LABELS[reservation.status]}${needsRoom ? ", needs a room: open to assign one" : ""}`}
+          aria-label={`${reservation.guest_name}, ${formatStay(reservation.check_in_date, reservation.check_out_date)}, ${source.label}, ${STATUS_LABELS[reservation.status]}${needsRoom ? `, needs a ${unitLower}: open to assign one` : ""}`}
           style={{ left: `${geometry.left * 100}%`, width: `${geometry.width * 100}%` }}
           className="group/block absolute inset-y-[5px] z-10 px-px outline-none focus-visible:z-20 focus-visible:ring-0"
         >
@@ -132,7 +135,7 @@ export function ReservationBlock({
           <span aria-hidden className={cn("size-2 rounded-full", source.accent)} />
           Booked via <span className="font-medium text-foreground">{source.label}</span>
           <span className={cn("ml-auto", needsRoom && "font-medium text-amber-700")}>
-            {needsRoom ? "Click to assign a room" : "Click to open"}
+            {needsRoom ? `Click to assign a ${unitLower}` : "Click to open"}
           </span>
         </div>
       </TooltipContent>

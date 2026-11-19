@@ -33,6 +33,7 @@ export interface TokenResponse {
 
 export interface RegisterRequest {
   hotel_name: string;
+  property_type: PropertyType;
   slug: string;
   email: string;
   full_name: string;
@@ -65,11 +66,17 @@ export interface HotelInput {
   email: string | null;
 }
 
+export type PropertyType = "hotel" | "resort" | "hostel" | "apartment" | "villa";
+
 export interface Hotel extends HotelInput {
   id: string;
   slug: string;
+  /** Null until the owner has chosen; treated as a hotel. */
+  property_type: PropertyType | null;
   updated_at: string;
 }
+
+export type HotelUpdate = Partial<HotelInput> & { property_type?: PropertyType };
 
 export interface RoomType {
   id: string;
@@ -95,14 +102,14 @@ export interface Room {
   id: string;
   room_type_id: string;
   room_number: string;
-  floor: string | null;
+  floor_or_zone: string | null;
   is_active: boolean;
 }
 
 export interface RoomInput {
   room_type_id: string;
   room_number: string;
-  floor: string | null;
+  floor_or_zone: string | null;
 }
 
 export interface DayAvailability {
@@ -115,7 +122,7 @@ export interface DayAvailability {
 export interface TapeChartRoom {
   id: string;
   room_number: string;
-  floor: string | null;
+  floor_or_zone: string | null;
 }
 
 export interface TapeChartRoomType {
@@ -347,4 +354,34 @@ export interface DashboardStats {
   period: Performance;
   /** One entry per day, oldest first, ending yesterday. */
   trend: DayPerformance[];
+}
+
+export type UnitStatus = "available" | "occupied" | "reserved" | "out_of_order";
+
+export interface PropertyMapUnit {
+  id: string;
+  room_number: string;
+  floor_or_zone: string | null;
+  room_type_id: string;
+  is_active: boolean;
+  status: UnitStatus;
+  reservation: TapeChartReservation | null;
+}
+
+export interface PropertyMapRoomType {
+  id: string;
+  name: string;
+  code: string;
+  base_rate: string;
+  max_occupancy: number;
+  total_rooms: number;
+  available: number;
+}
+
+export interface PropertyMap {
+  date: string;
+  room_types: PropertyMapRoomType[];
+  units: PropertyMapUnit[];
+  /** Confirmed stays covering the date that still need a room. */
+  unassigned: TapeChartReservation[];
 }

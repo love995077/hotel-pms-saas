@@ -12,6 +12,7 @@ import { daysFrom, fromIso, toIso, today } from "@/lib/dates";
 import { useCurrentUser, useTapeChart } from "@/lib/queries";
 import { can } from "@/lib/roles";
 import { SOURCE_STYLES } from "@/lib/sources";
+import { unitGroup, useTerms } from "@/lib/terminology";
 import type { BookingSource, TapeChartReservation, TapeChartRoom, TapeChartRoomType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +61,7 @@ export function TapeChart() {
   const [span, setSpan] = useState<(typeof SPANS)[number]>(14);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const { dialogs, openNew, openDetails } = useReservationDialogs();
+  const words = useTerms();
   const canBook = can(useCurrentUser().data?.role, "frontOffice");
 
   const windowEnd = addDays(windowStart, span);
@@ -149,7 +151,7 @@ export function TapeChart() {
           canBook
             ? (day) => openNew({ roomTypeId: roomType.id, roomId: room?.id, checkIn: toIso(day) })
             : undefined,
-          room ? roomLabel : `${roomType.name}, no room assigned`,
+          room ? roomLabel : `${roomType.name}, no ${words.unitLower} assigned`,
         )}
         {reservations.map((reservation) => {
           const geometry = geometryFor(reservation, windowStart, span);
@@ -161,6 +163,7 @@ export function TapeChart() {
               roomLabel={roomLabel}
               roomTypeCode={roomType.code}
               unassigned={room === null}
+              unitLower={words.unitLower}
               onOpen={() => openDetails(reservation.id)}
             />
           ) : null;
@@ -247,9 +250,9 @@ export function TapeChart() {
         </div>
       ) : data.room_types.length === 0 ? (
         <div className="px-6 py-16 text-center">
-          <p className="text-sm font-medium">No rooms yet</p>
+          <p className="text-sm font-medium">No {words.unitsLower} yet</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Add room types and rooms, and they will appear here.
+            Add {words.unitTypes.toLowerCase()} and {words.unitsLower}, and they will appear here.
           </p>
           <Button asChild variant="outline" size="sm" className="mt-4">
             <Link href="/settings">Set up inventory</Link>
@@ -264,7 +267,7 @@ export function TapeChart() {
                 className="sticky left-0 z-40 flex shrink-0 items-end border-r border-border bg-card px-4 pb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground"
                 style={{ width: LABEL_WIDTH }}
               >
-                Room
+                {words.unit}
               </div>
               <div className="grid min-w-0 flex-1" style={trackStyle}>
                 {days.map((day, index) => {
@@ -359,12 +362,12 @@ export function TapeChart() {
                           room.id,
                           <>
                             <span className="font-medium tabular-nums">{room.room_number}</span>
-                            {room.floor && (
-                              <span className="ml-2 text-xs text-muted-foreground">Floor {room.floor}</span>
-                            )}
+                            <span className="ml-2 truncate text-xs text-muted-foreground">
+                              {unitGroup(room, words)}
+                            </span>
                           </>,
                           byRoom.assigned.get(room.id) ?? [],
-                          `Room ${room.room_number}`,
+                          `${words.unit} ${room.room_number}`,
                           roomType,
                           room,
                         ),
@@ -374,14 +377,14 @@ export function TapeChart() {
                           `${roomType.id}-unassigned-${index}`,
                           index === 0 ? (
                             <span
-                              title="Bookings without a room number yet, such as OTA bookings. Click a booking to assign a room."
+                              title={`Bookings without a ${words.unitLower} number yet, such as OTA bookings. Click a booking to assign a ${words.unitLower}.`}
                               className="truncate rounded border border-dashed border-amber-300 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800"
                             >
-                              Unassigned (needs room)
+                              Unassigned (needs {words.unitLower})
                             </span>
                           ) : null,
                           lane,
-                          "No room assigned yet",
+                          `No ${words.unitLower} assigned yet`,
                           roomType,
                           null,
                         ),

@@ -29,6 +29,7 @@ import {
   useStayAvailability,
 } from "@/lib/queries";
 import type { BookingSource, Guest, Reservation } from "@/lib/types";
+import { unitGroup, useTerms } from "@/lib/terminology";
 import { cn, formatAmount, formatMoney, initials } from "@/lib/utils";
 
 /** Where on the tape chart the booking was started, if anywhere. */
@@ -73,6 +74,7 @@ export function NewReservationDialog({
   const allRooms = useRooms().data;
   const createGuest = useCreateGuest();
   const createReservation = useCreateReservation();
+  const words = useTerms();
 
   const [source, setSource] = useState<BookingSource>(
     (draft.checkIn ?? todayIso) === todayIso ? "walk_in" : "phone",
@@ -365,7 +367,7 @@ export function NewReservationDialog({
                     />
                   )}
                 </Field>
-                <Field label="Room type">
+                <Field label={words.unitType}>
                   {(field) => (
                     <Select
                       {...field}
@@ -384,14 +386,14 @@ export function NewReservationDialog({
                     </Select>
                   )}
                 </Field>
-                <Field label="Room" hint="Can be assigned any time before check-in.">
+                <Field label={words.unit} hint="Can be assigned any time before check-in.">
                   {(field) => (
                     <Select {...field} value={roomId} onChange={(event) => setRoomId(event.target.value)}>
                       <option value="">Assign later</option>
                       {rooms.map((room) => (
                         <option key={room.id} value={room.id}>
                           {room.room_number}
-                          {room.floor ? ` · Floor ${room.floor}` : ""}
+                          {` · ${unitGroup(room, words)}`}
                         </option>
                       ))}
                     </Select>
@@ -482,7 +484,7 @@ export function NewReservationDialog({
                     ) : (
                       <>
                         <Check className="size-3" strokeWidth={2.5} />
-                        {availability.data} {availability.data === 1 ? "room" : "rooms"} free
+                        {availability.data} {availability.data === 1 ? words.unitLower : words.unitsLower} free
                       </>
                     )}
                   </span>

@@ -2,7 +2,17 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { BookOpenCheck, Building2, LayoutDashboard, LoaderCircle, LogOut, Menu, Settings, Users } from "lucide-react";
+import {
+  BookOpenCheck,
+  Building2,
+  LayoutDashboard,
+  LayoutGrid,
+  LoaderCircle,
+  LogOut,
+  Menu,
+  Settings,
+  Users,
+} from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -16,6 +26,7 @@ import {
   SidebarToggle,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { PropertyTypePrompt } from "@/components/settings/property-type-prompt";
 import { APP_NAME } from "@/lib/constants";
 import { useCurrentUser, useHotel } from "@/lib/queries";
 import type { CurrentUser } from "@/lib/types";
@@ -24,6 +35,7 @@ import { hasValidSession, useAuthStore } from "@/stores/auth";
 
 const NAVIGATION = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/property-map", label: "Property map", icon: LayoutGrid },
   { href: "/reservations", label: "Reservations", icon: BookOpenCheck },
   { href: "/guests", label: "Guests", icon: Users },
 ] as const;
@@ -48,6 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [promptDismissed, setPromptDismissed] = useState(false);
   const user = useCurrentUser(signedIn).data;
   const hotel = useHotel(signedIn).data;
 
@@ -70,6 +83,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   const canManage = user?.role === "owner" || user?.role === "manager";
+  // Asked once of whoever can answer it; the PATCH response fills the cache and closes it.
+  const askPropertyType = canManage && hotel !== undefined && hotel.property_type === null && !promptDismissed;
   const current = [...NAVIGATION, ...ADMINISTRATION].find((item) => pathname.startsWith(item.href));
 
   return (
@@ -155,6 +170,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         <main className="scroll-slim min-h-0 flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
+        {askPropertyType && <PropertyTypePrompt onDismiss={() => setPromptDismissed(true)} />}
       </div>
     </div>
   );

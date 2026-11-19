@@ -11,7 +11,7 @@ from app.schemas.inventory import DayAvailabilityRead
 class TapeChartRoom(BaseModel):
     id: UUID
     room_number: str
-    floor: str | None
+    floor_or_zone: str | None
 
 
 class TapeChartRoomType(BaseModel):

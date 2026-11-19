@@ -10,6 +10,7 @@ from app.api.v1 import (
     hotel,
     night_audit,
     onboarding,
+    property_map,
     reports,
     reservations,
     room_types,
@@ -27,6 +28,7 @@ api_router.include_router(rooms.router)
 api_router.include_router(guests.router)
 api_router.include_router(availability.router)
 api_router.include_router(reservations.router)
+api_router.include_router(property_map.router)
 api_router.include_router(tape_chart.router)
 api_router.include_router(folios.router)
 api_router.include_router(gst.router)

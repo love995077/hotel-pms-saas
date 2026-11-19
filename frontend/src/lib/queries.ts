@@ -16,9 +16,10 @@ import type {
   Guest,
   GuestInput,
   Hotel,
-  HotelInput,
+  HotelUpdate,
   OutboundTestResult,
   PaymentInput,
+  PropertyMap,
   Reservation,
   ReservationInput,
   RegisterRequest,
@@ -62,6 +63,15 @@ export function useDashboardStats() {
 }
 
 /** Rooms, availability and reservations for nights in [start, end). */
+/** One date's view of every unit: what is in it, or that it is free. */
+export function usePropertyMap(date: string) {
+  return useQuery({
+    queryKey: ["property-map", date],
+    queryFn: ({ signal }) => api<PropertyMap>("/property-map", { query: { date }, signal }),
+    placeholderData: keepPreviousData,
+  });
+}
+
 export function useTapeChart(start: string, end: string, includeReleased = false) {
   return useQuery({
     queryKey: ["tape-chart", start, end, includeReleased],
@@ -117,7 +127,7 @@ export function useRooms() {
 function useInvalidateInventory() {
   const queryClient = useQueryClient();
   return () =>
-    Promise.all(["room-types", "rooms", "tape-chart"].map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
+    Promise.all(["room-types", "rooms", "tape-chart", "property-map"].map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
 }
 
 export function useCreateRoomType() {
@@ -204,7 +214,7 @@ function useInvalidateGuests() {
   const queryClient = useQueryClient();
   // Guest names are printed on the tape chart, so it is refreshed as well.
   return () =>
-    Promise.all(["guests", "guest", "tape-chart"].map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
+    Promise.all(["guests", "guest", "tape-chart", "property-map"].map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
 }
 
 export function useCreateGuest() {
@@ -283,7 +293,7 @@ function useInvalidateReservations() {
   const queryClient = useQueryClient();
   return () =>
     Promise.all(
-      ["tape-chart", "reservation", "reservations", "availability", "folio", "dashboard-stats"].map((key) =>
+      ["tape-chart", "property-map", "reservation", "reservations", "availability", "folio", "dashboard-stats"].map((key) =>
         queryClient.invalidateQueries({ queryKey: [key] }),
       ),
     );
@@ -419,7 +429,7 @@ export function useHotel(enabled = true) {
 
 export function useUpdateHotel() {
   const queryClient = useQueryClient();
-  return useMutation<Hotel, ApiError, Partial<HotelInput>>({
+  return useMutation<Hotel, ApiError, HotelUpdate>({
     mutationFn: (changes) => api<Hotel>("/hotel", { method: "PATCH", body: changes }),
     onSuccess: (hotel) => queryClient.setQueryData(["hotel"], hotel),
   });
