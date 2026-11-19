@@ -12,7 +12,7 @@ import { daysFrom, fromIso, toIso, today } from "@/lib/dates";
 import { useCurrentUser, useTapeChart } from "@/lib/queries";
 import { can } from "@/lib/roles";
 import { SOURCE_STYLES } from "@/lib/sources";
-import { unitGroup, useTerms } from "@/lib/terminology";
+import { kindTerms, unitGroup, useTerms } from "@/lib/terminology";
 import type { BookingSource, TapeChartReservation, TapeChartRoom, TapeChartRoomType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -151,7 +151,7 @@ export function TapeChart() {
           canBook
             ? (day) => openNew({ roomTypeId: roomType.id, roomId: room?.id, checkIn: toIso(day) })
             : undefined,
-          room ? roomLabel : `${roomType.name}, no ${words.unitLower} assigned`,
+          room ? roomLabel : `${roomType.name}, no ${kindTerms(roomType.unit_kind).unitLower} assigned`,
         )}
         {reservations.map((reservation) => {
           const geometry = geometryFor(reservation, windowStart, span);
@@ -163,7 +163,7 @@ export function TapeChart() {
               roomLabel={roomLabel}
               roomTypeCode={roomType.code}
               unassigned={room === null}
-              unitLower={words.unitLower}
+              unitLower={kindTerms(roomType.unit_kind).unitLower}
               onOpen={() => openDetails(reservation.id)}
             />
           ) : null;
@@ -363,11 +363,11 @@ export function TapeChart() {
                           <>
                             <span className="font-medium tabular-nums">{room.room_number}</span>
                             <span className="ml-2 truncate text-xs text-muted-foreground">
-                              {unitGroup(room, words)}
+                              {unitGroup(room)}
                             </span>
                           </>,
                           byRoom.assigned.get(room.id) ?? [],
-                          `${words.unit} ${room.room_number}`,
+                          `${kindTerms(roomType.unit_kind).unit} ${room.room_number}`,
                           roomType,
                           room,
                         ),
@@ -377,14 +377,14 @@ export function TapeChart() {
                           `${roomType.id}-unassigned-${index}`,
                           index === 0 ? (
                             <span
-                              title={`Bookings without a ${words.unitLower} number yet, such as OTA bookings. Click a booking to assign a ${words.unitLower}.`}
+                              title={`Bookings without a ${kindTerms(roomType.unit_kind).unitLower} number yet, such as OTA bookings. Click a booking to assign one.`}
                               className="truncate rounded border border-dashed border-amber-300 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800"
                             >
-                              Unassigned (needs {words.unitLower})
+                              Unassigned (needs {kindTerms(roomType.unit_kind).unitLower})
                             </span>
                           ) : null,
                           lane,
-                          `No ${words.unitLower} assigned yet`,
+                          `No ${kindTerms(roomType.unit_kind).unitLower} assigned yet`,
                           roomType,
                           null,
                         ),

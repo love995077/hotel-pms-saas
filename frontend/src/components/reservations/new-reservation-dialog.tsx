@@ -29,7 +29,7 @@ import {
   useStayAvailability,
 } from "@/lib/queries";
 import type { BookingSource, Guest, Reservation } from "@/lib/types";
-import { unitGroup, useTerms } from "@/lib/terminology";
+import { kindTerms, unitGroup, useTerms } from "@/lib/terminology";
 import { cn, formatAmount, formatMoney, initials } from "@/lib/utils";
 
 /** Where on the tape chart the booking was started, if anywhere. */
@@ -108,6 +108,7 @@ export function NewReservationDialog({
   }, [roomTypeId, roomTypes]);
 
   const roomType = roomTypes?.find((candidate) => candidate.id === roomTypeId);
+  const kind = kindTerms(roomType?.unit_kind);
   const rooms = (allRooms ?? [])
     .filter((room) => room.is_active && room.room_type_id === roomTypeId)
     .sort((a, b) => byRoomNumber.compare(a.room_number, b.room_number));
@@ -386,14 +387,14 @@ export function NewReservationDialog({
                     </Select>
                   )}
                 </Field>
-                <Field label={words.unit} hint="Can be assigned any time before check-in.">
+                <Field label={kind.unit} hint="Can be assigned any time before check-in.">
                   {(field) => (
                     <Select {...field} value={roomId} onChange={(event) => setRoomId(event.target.value)}>
                       <option value="">Assign later</option>
                       {rooms.map((room) => (
                         <option key={room.id} value={room.id}>
                           {room.room_number}
-                          {` · ${unitGroup(room, words)}`}
+                          {` · ${unitGroup(room)}`}
                         </option>
                       ))}
                     </Select>
@@ -484,7 +485,7 @@ export function NewReservationDialog({
                     ) : (
                       <>
                         <Check className="size-3" strokeWidth={2.5} />
-                        {availability.data} {availability.data === 1 ? words.unitLower : words.unitsLower} free
+                        {availability.data} {availability.data === 1 ? kind.unitLower : kind.unitsLower} free
                       </>
                     )}
                   </span>

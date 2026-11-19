@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import AfterValidator, BaseModel, Field, model_validator
 
+from app.models import UnitKind
 from app.schemas.base import CreateSchema, PatchSchema, ReadSchema
 
 Money = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=2)]
@@ -26,6 +27,8 @@ class RoomTypeCreate(CreateSchema):
     base_occupancy: int = Field(default=2, ge=1)
     max_occupancy: int = Field(default=2, ge=1)
     base_rate: Money
+    # Left out: derived from the property type (villa, flat, otherwise room).
+    unit_kind: UnitKind | None = None
 
     @model_validator(mode="after")
     def _occupancy_consistent(self) -> Self:
@@ -43,6 +46,7 @@ class RoomTypeUpdate(PatchSchema):
     base_occupancy: int | None = Field(default=None, ge=1)
     max_occupancy: int | None = Field(default=None, ge=1)
     base_rate: Money | None = None
+    unit_kind: UnitKind | None = None
     is_active: bool | None = None
 
 
@@ -53,6 +57,7 @@ class RoomTypeRead(ReadSchema):
     base_occupancy: int
     max_occupancy: int
     base_rate: Decimal
+    unit_kind: UnitKind
     is_active: bool
 
 

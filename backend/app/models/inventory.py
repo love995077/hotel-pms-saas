@@ -1,4 +1,5 @@
 from decimal import Decimal
+from enum import StrEnum
 from uuid import UUID
 
 from sqlalchemy import (
@@ -15,7 +16,32 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, TenantMixin, TimestampMixin, UUIDPrimaryKeyMixin
+from app.models.base import (
+    Base,
+    TenantMixin,
+    TimestampMixin,
+    UUIDPrimaryKeyMixin,
+    enum_values_sql,
+)
+from app.models.hotel import PropertyType
+
+
+class UnitKind(StrEnum):
+    """What one sellable unit of a room type is; the UI label and icon follow it."""
+
+    ROOM = "room"
+    DORM_BED = "dorm_bed"
+    VILLA = "villa"
+    FLAT = "flat"
+
+
+def default_unit_kind(property_type: PropertyType | None) -> UnitKind:
+    """A new room type's kind when none is given. Hostels mix beds and rooms, so: room."""
+    if property_type in (PropertyType.RESORT, PropertyType.VILLA):
+        return UnitKind.VILLA
+    if property_type == PropertyType.APARTMENT:
+        return UnitKind.FLAT
+    return UnitKind.ROOM
 
 
 class RoomType(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
@@ -29,6 +55,7 @@ class RoomType(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
         CheckConstraint("base_occupancy >= 1", name="base_occupancy_positive"),
         CheckConstraint("max_occupancy >= base_occupancy", name="max_occupancy_valid"),
         CheckConstraint("base_rate >= 0", name="base_rate_non_negative"),
+        CheckConstraint(f"unit_kind IN ({enum_values_sql(UnitKind)})", name="unit_kind_valid"),
     )
 
     name: Mapped[str] = mapped_column(String(100))
@@ -38,6 +65,7 @@ class RoomType(UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin, Base):
     max_occupancy: Mapped[int] = mapped_column(Integer, server_default=text("2"))
     # Tariff per night, before tax.
     base_rate: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    unit_kind: Mapped[UnitKind] = mapped_column(String(20), server_default=text("'room'"))
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
 
 

@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.api.deps import MANAGEMENT, DbSession, get_current_user, require_roles
 from app.core.exceptions import UnprocessableError
 from app.database import current_hotel_id
-from app.models import RoomType
+from app.models import Hotel, RoomType, default_unit_kind
 from app.schemas.inventory import RoomTypeCreate, RoomTypeRead, RoomTypeUpdate
 from app.services.crud import apply_changes, flush_or_conflict, get_or_404
 
@@ -23,7 +23,11 @@ _CODE_TAKEN = "A room type with this code already exists"
     "", response_model=RoomTypeRead, status_code=status.HTTP_201_CREATED, dependencies=[_manage]
 )
 async def create_room_type(data: RoomTypeCreate, db: DbSession) -> RoomType:
-    room_type = RoomType(hotel_id=current_hotel_id(db), **data.model_dump())
+    values = data.model_dump()
+    if values["unit_kind"] is None:
+        hotel = await get_or_404(db, Hotel, current_hotel_id(db))
+        values["unit_kind"] = default_unit_kind(hotel.property_type)
+    room_type = RoomType(hotel_id=current_hotel_id(db), **values)
     db.add(room_type)
     await flush_or_conflict(db, _CODE_TAKEN)
     return room_type

@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { AddRoomsDialog, DeleteDialog, EditRoomDialog, RoomTypeDialog } from "@/components/inventory/inventory-dialogs";
 import { Button } from "@/components/ui/button";
 import { useCurrentUser, useRooms, useRoomTypes } from "@/lib/queries";
-import { type Terms, unitGroup, useTerms } from "@/lib/terminology";
+import { kindTerms, unitGroup, useTerms } from "@/lib/terminology";
 import type { Room, RoomType } from "@/lib/types";
 import { cn, formatMoney } from "@/lib/utils";
 
@@ -54,8 +54,8 @@ export function InventorySettings() {
         <div className="mr-auto">
           <h2 className="text-xl font-semibold tracking-tight">Inventory</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            The {words.unitTypes.toLowerCase()} you sell and the {words.unitsLower} behind them, grouped by{" "}
-            {words.group.toLowerCase()}.
+            The {words.unitTypes.toLowerCase()} you sell and the {words.unitsLower} behind them. Each type can be private
+            rooms, dorm beds, villas or flats.
           </p>
         </div>
         {canManage && types && types.length > 0 && (
@@ -126,7 +126,6 @@ export function InventorySettings() {
                 roomType={roomType}
                 rooms={roomsByType.get(roomType.id) ?? []}
                 canManage={canManage}
-                words={words}
                 onOpen={setDialog}
               />
             ))}
@@ -168,15 +167,15 @@ function RoomTypeCard({
   roomType,
   rooms,
   canManage,
-  words,
   onOpen,
 }: {
   roomType: RoomType;
   rooms: Room[];
   canManage: boolean;
-  words: Terms;
   onOpen: (dialog: OpenDialog) => void;
 }) {
+  const kind = kindTerms(roomType.unit_kind);
+  const KindIcon = kind.icon;
   const occupancy =
     roomType.base_occupancy === roomType.max_occupancy
       ? `Sleeps ${roomType.max_occupancy}`
@@ -196,6 +195,10 @@ function RoomTypeCard({
             <span className="rounded-md bg-accent px-1.5 py-0.5 text-[11px] font-semibold tracking-wide text-accent-foreground">
               {roomType.code}
             </span>
+            <span className="flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+              <KindIcon className="size-3" />
+              {kind.label}
+            </span>
             {!roomType.is_active && (
               <span className="rounded-md border border-border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
                 Not for sale
@@ -211,7 +214,7 @@ function RoomTypeCard({
               {occupancy}
             </span>
             <span>
-              {rooms.length} {rooms.length === 1 ? words.unitLower : words.unitsLower}
+              {rooms.length} {rooms.length === 1 ? kind.unitLower : kind.unitsLower}
             </span>
           </p>
           {roomType.description && (
@@ -222,7 +225,7 @@ function RoomTypeCard({
           <div className="flex items-center gap-1">
             <Button variant="outline" size="sm" onClick={() => onOpen({ kind: "add-rooms", roomType })}>
               <Plus className="size-3.5" />
-              Add {words.unitsLower}
+              Add {kind.unitsLower}
             </Button>
             <Button
               variant="ghost"
@@ -249,8 +252,8 @@ function RoomTypeCard({
 
       {rooms.length === 0 ? (
         <p className="px-5 py-6 text-[13px] text-muted-foreground">
-          No {words.unitsLower} yet.{" "}
-          {canManage ? `Add the ${words.unitsLower} of this type so they can be booked and assigned.` : ""}
+          No {kind.unitsLower} yet.{" "}
+          {canManage ? `Add the ${kind.unitsLower} of this type so they can be booked and assigned.` : ""}
         </p>
       ) : (
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(6.75rem,1fr))] gap-2 p-4 sm:p-5">
@@ -259,7 +262,7 @@ function RoomTypeCard({
               <>
                 <span className="block text-sm font-semibold leading-tight tabular-nums">{room.room_number}</span>
                 <span className="mt-0.5 block truncate text-[11px] leading-tight text-muted-foreground">
-                  {!room.is_active ? "Out of order" : unitGroup(room, words)}
+                  {!room.is_active ? "Out of order" : unitGroup(room)}
                 </span>
               </>
             );
@@ -272,7 +275,7 @@ function RoomTypeCard({
                 {canManage ? (
                   <button
                     type="button"
-                    aria-label={`Edit ${words.unitLower} ${room.room_number}`}
+                    aria-label={`Edit ${kind.unitLower} ${room.room_number}`}
                     onClick={() => onOpen({ kind: "edit-room", room })}
                     className={cn(
                       chipClass,

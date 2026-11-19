@@ -123,9 +123,9 @@ function ProfileForm({ hotel }: { hotel: Hotel }) {
           <PropertyTypePicker value={propertyType} onChange={setPropertyType} className="lg:grid-cols-5" />
           <p className="text-xs text-muted-foreground">
             {propertyType === null ? "Not chosen yet, so the app uses hotel terms. " : ""}
-            Units are called <span className="font-medium text-foreground">{words.unitsLower}</span>, grouped by{" "}
-            <span className="font-medium text-foreground">{words.group.toLowerCase()}</span>. You can change this
-            anytime; nothing else changes.
+            Inventory is described as <span className="font-medium text-foreground">{words.unitsLower}</span>. Each
+            room type still sets its own kind (private room, dorm bed, villa or flat), so mixed properties read
+            correctly. You can change this anytime; nothing else changes.
           </p>
         </fieldset>
 

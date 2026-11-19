@@ -18,7 +18,7 @@ from app.models.channel import (
 )
 from app.models.guest import Guest
 from app.models.hotel import Hotel, PropertyType
-from app.models.inventory import Room, RoomType
+from app.models.inventory import Room, RoomType, UnitKind, default_unit_kind
 from app.models.reservation import (
     INVENTORY_HOLDING_STATUSES,
     BookingSource,
@@ -50,7 +50,9 @@ __all__ = [
     "Room",
     "RoomType",
     "TransactionCategory",
+    "UnitKind",
     "User",
     "UserRole",
     "WebhookEventStatus",
+    "default_unit_kind",
 ]

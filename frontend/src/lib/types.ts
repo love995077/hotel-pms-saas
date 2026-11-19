@@ -68,6 +68,9 @@ export interface HotelInput {
 
 export type PropertyType = "hotel" | "resort" | "hostel" | "apartment" | "villa";
 
+/** What one unit of a room type is; its label and icon follow it. */
+export type UnitKind = "room" | "dorm_bed" | "villa" | "flat";
+
 export interface Hotel extends HotelInput {
   id: string;
   slug: string;
@@ -86,6 +89,7 @@ export interface RoomType {
   base_occupancy: number;
   max_occupancy: number;
   base_rate: string;
+  unit_kind: UnitKind;
   is_active: boolean;
 }
 
@@ -96,6 +100,7 @@ export interface RoomTypeInput {
   base_occupancy: number;
   max_occupancy: number;
   base_rate: string;
+  unit_kind: UnitKind;
 }
 
 export interface Room {
@@ -129,6 +134,7 @@ export interface TapeChartRoomType {
   id: string;
   name: string;
   code: string;
+  unit_kind: UnitKind;
   rooms: TapeChartRoom[];
   availability: DayAvailability[];
 }
@@ -372,6 +378,7 @@ export interface PropertyMapRoomType {
   id: string;
   name: string;
   code: string;
+  unit_kind: UnitKind;
   base_rate: string;
   max_occupancy: number;
   total_rooms: number;

@@ -24,10 +24,20 @@ import {
   useDeleteRoomType,
   useRooms,
   useUpdateRoom,
+  useHotel,
   useUpdateRoomType,
 } from "@/lib/queries";
-import { type Terms, unitGroup, useTerms } from "@/lib/terminology";
-import type { Room, RoomType } from "@/lib/types";
+import {
+  defaultUnitKind,
+  kindTerms,
+  type Terms,
+  UNIT_KIND_ORDER,
+  UNIT_KINDS,
+  unitGroup,
+  useTerms,
+} from "@/lib/terminology";
+import type { Room, RoomType, UnitKind } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 // Each dialog is mounted only while it is open, so its form state always
 // starts from the record it was opened for.
@@ -85,7 +95,9 @@ export function RoomTypeDialog({ roomType, onClose }: DialogProps & { roomType: 
   const create = useCreateRoomType();
   const update = useUpdateRoomType();
   const mutation = roomType ? update : create;
+  const propertyType = useHotel().data?.property_type;
 
+  const [unitKind, setUnitKind] = useState<UnitKind>(roomType?.unit_kind ?? defaultUnitKind(propertyType));
   const [name, setName] = useState(roomType?.name ?? "");
   const [code, setCode] = useState(roomType?.code ?? "");
   // The code follows the name until the user edits it themselves.
@@ -112,10 +124,11 @@ export function RoomTypeDialog({ roomType, onClose }: DialogProps & { roomType: 
       base_occupancy: Number(baseOccupancy),
       max_occupancy: Number(maxOccupancy),
       base_rate: rate.trim(),
+      unit_kind: unitKind,
     };
     const onSuccess = (saved: RoomType) => {
       toast.success(roomType ? `${saved.name} updated` : `${saved.name} added`, {
-        description: roomType ? undefined : `Now add the ${words.unitsLower} of this type.`,
+        description: roomType ? undefined : `Now add the ${kindTerms(saved.unit_kind).unitsLower} of this type.`,
       });
       onClose();
     };
@@ -137,6 +150,46 @@ export function RoomTypeDialog({ roomType, onClose }: DialogProps & { roomType: 
           </DialogHeader>
           <DialogBody>
             <FormError className="mb-4" message={mutation.error?.message} />
+            <fieldset className="mb-4">
+              <legend className="mb-2 text-sm font-medium">Each unit of this type is a</legend>
+              <div role="radiogroup" aria-label="Unit kind" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {UNIT_KIND_ORDER.map((value) => {
+                  const kind = UNIT_KINDS[value];
+                  const Icon = kind.icon;
+                  const checked = unitKind === value;
+                  return (
+                    <label
+                      key={value}
+                      className={cn(
+                        "flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border px-2 py-2.5 text-center text-[12.5px] font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
+                        checked ? "border-primary bg-primary/5 text-foreground" : "border-border text-muted-foreground hover:bg-accent/50",
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="unit-kind"
+                        value={value}
+                        checked={checked}
+                        onChange={() => {
+                          setUnitKind(value);
+                          // A dorm bed sleeps one; only preset it while the numbers are untouched.
+                          if (!roomType && value === "dorm_bed" && baseOccupancy === "2" && maxOccupancy === "2") {
+                            setBaseOccupancy("1");
+                            setMaxOccupancy("1");
+                          }
+                        }}
+                        className="sr-only"
+                      />
+                      <Icon className={cn("size-5", checked ? "text-primary" : "")} strokeWidth={1.75} />
+                      {kind.label}
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Sets how its units are labelled and shown. A property can mix kinds, such as dorm beds and private rooms.
+              </p>
+            </fieldset>
             <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
               <Field label="Name">
                 {(field) => (
@@ -271,6 +324,7 @@ function parseRoomNumbers(value: string): string[] {
 export function AddRoomsDialog({ roomType, onClose }: DialogProps & { roomType: RoomType }) {
   const createRooms = useCreateRooms();
   const words = useTerms();
+  const kind = kindTerms(roomType.unit_kind);
   const groups = useGroupNames();
   const [numbers, setNumbers] = useState("");
   const [floor, setFloor] = useState("");
@@ -290,8 +344,8 @@ export function AddRoomsDialog({ roomType, onClose }: DialogProps & { roomType: 
           if (created.length > 0) {
             toast.success(
               created.length === 1
-                ? `${words.unit} ${created[0].room_number} added`
-                : `${created.length} ${words.unitsLower} added to ${roomType.name}`,
+                ? `${kind.unit} ${created[0].room_number} added`
+                : `${created.length} ${kind.unitsLower} added to ${roomType.name}`,
             );
           }
           if (failed.length === 0) return onClose();
@@ -299,8 +353,8 @@ export function AddRoomsDialog({ roomType, onClose }: DialogProps & { roomType: 
           setNumbers(failed.map((item) => item.room_number).join(", "));
           setRejected(
             failed.length === 1
-              ? `${words.unit} ${failed[0].room_number} was not added: ${failed[0].message}.`
-              : `${failed.length} ${words.unitsLower} were not added (${failed.map((item) => item.room_number).join(", ")}): ${failed[0].message}.`,
+              ? `${kind.unit} ${failed[0].room_number} was not added: ${failed[0].message}.`
+              : `${failed.length} ${kind.unitsLower} were not added (${failed.map((item) => item.room_number).join(", ")}): ${failed[0].message}.`,
           );
         },
       },
@@ -313,20 +367,20 @@ export function AddRoomsDialog({ roomType, onClose }: DialogProps & { roomType: 
         <form onSubmit={onSubmit} className="flex min-h-0 flex-col">
           <DialogHeader>
             <DialogTitle>
-              Add {words.unitsLower} to {roomType.name}
+              Add {kind.unitsLower} to {roomType.name}
             </DialogTitle>
             <DialogDescription>
-              The physical {words.unitsLower} guests are assigned to. Add one, or several at once.
+              The {kind.unitsLower} guests are assigned to. Add one, or several at once.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
             <FormError className="mb-4" message={rejected ?? createRooms.error?.message} />
             <div className="grid gap-4 sm:grid-cols-[1fr_11rem]">
               <Field
-                label={`${words.unit} numbers`}
+                label={`${kind.unit} numbers`}
                 hint={
                   parsed.length > 1
-                    ? `${parsed.length} ${words.unitsLower} will be added.`
+                    ? `${parsed.length} ${kind.unitsLower} will be added.`
                     : "Separate several with commas or spaces: 101, 102, 103"
                 }
                 error={tooLong ? `"${tooLong}" is longer than 20 characters.` : null}
@@ -348,7 +402,7 @@ export function AddRoomsDialog({ roomType, onClose }: DialogProps & { roomType: 
                 groups={groups}
                 value={floor}
                 onChange={setFloor}
-                derived={parsed.length > 0 ? unitGroup({ room_number: parsed[0], floor_or_zone: null }, words) : null}
+                derived={parsed.length > 0 ? unitGroup({ room_number: parsed[0], floor_or_zone: null }) : null}
               />
             </div>
           </DialogBody>
@@ -359,7 +413,7 @@ export function AddRoomsDialog({ roomType, onClose }: DialogProps & { roomType: 
               </Button>
             </DialogClose>
             <SubmitButton pending={createRooms.isPending}>
-              {parsed.length > 1 ? `Add ${parsed.length} ${words.unitsLower}` : `Add ${words.unitLower}`}
+              {parsed.length > 1 ? `Add ${parsed.length} ${kind.unitsLower}` : `Add ${kind.unitLower}`}
             </SubmitButton>
           </DialogFooter>
         </form>
@@ -380,6 +434,7 @@ export function EditRoomDialog({
   const [number, setNumber] = useState(room.room_number);
   const [floor, setFloor] = useState(room.floor_or_zone ?? "");
   const [roomTypeId, setRoomTypeId] = useState(room.room_type_id);
+  const kind = kindTerms(roomTypes.find((candidate) => candidate.id === roomTypeId)?.unit_kind);
   const [isActive, setIsActive] = useState(room.is_active);
 
   function onSubmit(event: React.FormEvent) {
@@ -396,7 +451,7 @@ export function EditRoomDialog({
       },
       {
         onSuccess: (saved) => {
-          toast.success(`${words.unit} ${saved.room_number} updated`);
+          toast.success(`${kind.unit} ${saved.room_number} updated`);
           onClose();
         },
       },
@@ -409,7 +464,7 @@ export function EditRoomDialog({
         <form onSubmit={onSubmit} className="flex min-h-0 flex-col">
           <DialogHeader>
             <DialogTitle>
-              {words.unit} {room.room_number}
+              {kind.unit} {room.room_number}
             </DialogTitle>
             <DialogDescription>
               Rename it, regroup it, move it to another {words.unitType.toLowerCase()}, or mark it out of order.
@@ -418,7 +473,7 @@ export function EditRoomDialog({
           <DialogBody>
             <FormError className="mb-4" message={update.error?.message} />
             <div className="grid grid-cols-2 gap-4">
-              <Field label={`${words.unit} number`}>
+              <Field label={`${kind.unit} number`}>
                 {(field) => (
                   <Input
                     {...field}
@@ -435,7 +490,7 @@ export function EditRoomDialog({
                 groups={groups}
                 value={floor}
                 onChange={setFloor}
-                derived={unitGroup({ room_number: number || room.room_number, floor_or_zone: null }, words)}
+                derived={unitGroup({ room_number: number || room.room_number, floor_or_zone: null })}
               />
               <Field label={words.unitType} className="col-span-2">
                 {(field) => (
@@ -458,7 +513,7 @@ export function EditRoomDialog({
                 checked={isActive}
                 onChange={setIsActive}
                 label="In service"
-                description={`Turn off for maintenance or long repairs. The ${words.unitLower} shows as out of order on the property map and stops counting towards what you can sell.`}
+                description={`Turn off for maintenance or long repairs. The ${kind.unitLower} shows as out of order on the property map and stops counting towards what you can sell.`}
               />
             </div>
           </DialogBody>
@@ -470,7 +525,7 @@ export function EditRoomDialog({
               className="text-destructive hover:bg-destructive/10 hover:text-destructive sm:mr-auto"
             >
               <Trash2 className="size-4" />
-              Delete {words.unitLower}
+              Delete {kind.unitLower}
             </Button>
             <DialogClose asChild>
               <Button type="button" variant="outline">
@@ -491,7 +546,7 @@ export function DeleteDialog({ target, onClose }: DialogProps & { target: { room
   const isType = "roomType" in target;
   const mutation = isType ? deleteRoomType : deleteRoom;
   const words = useTerms();
-  const label = isType ? target.roomType.name : `${words.unit} ${target.room.room_number}`;
+  const label = isType ? target.roomType.name : `Unit ${target.room.room_number}`;
 
   function onConfirm() {
     mutation.mutate(isType ? target.roomType.id : target.room.id, {
@@ -561,7 +616,7 @@ function GroupField({
   const listId = useId();
   return (
     <Field
-      label={`${words.group} (optional)`}
+      label="Floor / zone (optional)"
       hint={value.trim() === "" && derived ? `Blank shows as "${derived}".` : undefined}
     >
       {(field) => (
@@ -570,7 +625,7 @@ function GroupField({
             {...field}
             value={value}
             onChange={(event) => onChange(event.target.value)}
-            placeholder={words.groupShort === "Floor" ? "1st Floor" : `${words.groupShort} A`}
+            placeholder={words.groupExample}
             maxLength={50}
             list={listId}
             autoComplete="off"

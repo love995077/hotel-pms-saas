@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from app.models import UnitKind
 from app.schemas.tape_chart import TapeChartReservation
 
 
@@ -32,6 +33,7 @@ class PropertyMapRoomType(BaseModel):
     id: UUID
     name: str
     code: str
+    unit_kind: UnitKind
     base_rate: Decimal
     max_occupancy: int
     # Sellable on the night of `date`, counted per room type like everywhere else.

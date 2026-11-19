@@ -73,6 +73,7 @@ async def tape_chart(
                 id=room_type.id,
                 name=room_type.name,
                 code=room_type.code,
+                unit_kind=room_type.unit_kind,
                 rooms=rooms[room_type.id],
                 availability=availability[room_type.id],
             )

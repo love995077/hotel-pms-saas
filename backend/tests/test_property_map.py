@@ -141,3 +141,49 @@ async def test_room_group_is_trimmed_and_blank_means_none(
         json={"floor_or_zone": "x" * 51},
     )
     assert too_long.status_code == 422
+
+
+async def test_unit_kind_defaults_from_the_property_and_can_be_mixed(
+    client: AsyncClient, tenant: Tenant
+) -> None:
+    async def create(code: str, **extra: Any) -> dict[str, Any]:
+        response = await client.post(
+            f"{API}/room-types",
+            headers=tenant.headers,
+            json={"name": code, "code": code, "base_rate": "1000.00", **extra},
+        )
+        assert response.status_code == 201, response.text
+        body: dict[str, Any] = response.json()
+        return body
+
+    # Not chosen yet (a hotel), and a hostel, both default to rooms: hostels mix.
+    assert (await create("DBL"))["unit_kind"] == "room"
+    await client.patch(f"{API}/hotel", headers=tenant.headers, json={"property_type": "hostel"})
+    assert (await create("PRV"))["unit_kind"] == "room"
+    dorm = await create("DRM", unit_kind="dorm_bed")
+    assert dorm["unit_kind"] == "dorm_bed"
+
+    await client.patch(f"{API}/hotel", headers=tenant.headers, json={"property_type": "apartment"})
+    assert (await create("1BHK"))["unit_kind"] == "flat"
+    await client.patch(f"{API}/hotel", headers=tenant.headers, json={"property_type": "resort"})
+    assert (await create("COT"))["unit_kind"] == "villa"
+
+    changed = await client.patch(
+        f"{API}/room-types/{dorm['id']}", headers=tenant.headers, json={"unit_kind": "room"}
+    )
+    assert changed.json()["unit_kind"] == "room"
+    for bad in ({"unit_kind": "castle"}, {"unit_kind": None}):
+        response = await client.patch(
+            f"{API}/room-types/{dorm['id']}", headers=tenant.headers, json=bad
+        )
+        assert response.status_code == 422, response.text
+
+    chart = await client.get(
+        f"{API}/tape-chart",
+        headers=tenant.headers,
+        params={"start": "2027-06-10", "end": "2027-06-11"},
+    )
+    kinds = {room_type["code"]: room_type["unit_kind"] for room_type in chart.json()["room_types"]}
+    assert kinds == {"DBL": "room", "PRV": "room", "DRM": "room", "1BHK": "flat", "COT": "villa"}
+    body = await property_map(client, tenant, "2027-06-10")
+    assert {room_type["unit_kind"] for room_type in body["room_types"]} == {"room", "flat", "villa"}

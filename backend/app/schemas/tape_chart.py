@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from app.models import BookingSource, ReservationStatus
+from app.models import BookingSource, ReservationStatus, UnitKind
 from app.schemas.inventory import DayAvailabilityRead
 
 
@@ -18,6 +18,7 @@ class TapeChartRoomType(BaseModel):
     id: UUID
     name: str
     code: str
+    unit_kind: UnitKind
     rooms: list[TapeChartRoom]
     # One entry per night in the requested window.
     availability: list[DayAvailabilityRead]

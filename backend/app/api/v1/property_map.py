@@ -120,6 +120,7 @@ async def property_map(db: DbSession, day: Annotated[date, Query(alias="date")])
                 id=room_type.id,
                 name=room_type.name,
                 code=room_type.code,
+                unit_kind=room_type.unit_kind,
                 base_rate=room_type.base_rate,
                 max_occupancy=room_type.max_occupancy,
                 total_rooms=nights[room_type.id].total_rooms if room_type.id in nights else 0,

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FormError, Segmented, Select } from "@/components/ui/field";
 import { formatStay, nightsBetween } from "@/lib/dates";
-import { unitGroup, useTerms } from "@/lib/terminology";
+import { kindTerms, unitGroup } from "@/lib/terminology";
 import {
   type ReservationAction,
   useCurrentUser,
@@ -85,7 +85,7 @@ function Loaded({
     .sort((a, b) => byRoomNumber.compare(a.room_number, b.room_number));
   const folio = useFolio(reservation.id);
   const action = useReservationAction();
-  const words = useTerms();
+  const words = kindTerms(roomType?.unit_kind);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
 
   const nights = nightsBetween(reservation.check_in_date, reservation.check_out_date);
@@ -228,7 +228,7 @@ function Loaded({
                     {rooms.map((room) => (
                       <option key={room.id} value={room.id}>
                         {room.room_number}
-                        {` · ${unitGroup(room, words)}`}
+                        {` · ${unitGroup(room)}`}
                       </option>
                     ))}
                   </Select>
