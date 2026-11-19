@@ -17,7 +17,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { APP_NAME } from "@/lib/constants";
-import { useCurrentUser } from "@/lib/queries";
+import { useCurrentUser, useHotel } from "@/lib/queries";
 import type { CurrentUser } from "@/lib/types";
 import { cn, initials } from "@/lib/utils";
 import { hasValidSession, useAuthStore } from "@/stores/auth";
@@ -49,6 +49,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const user = useCurrentUser(signedIn).data;
+  const hotel = useHotel(signedIn).data;
 
   useEffect(() => {
     if (hydrated && !signedIn) router.replace("/login");
@@ -90,7 +91,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         <Sidebar collapsed={collapsed && !mobileOpen} onCollapsedChange={setCollapsed}>
           <SidebarHeader>
-            <Brand />
+            <Brand hotelName={hotel?.name} />
             <SidebarToggle className="ml-auto hidden lg:flex" />
           </SidebarHeader>
 
@@ -159,7 +160,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Brand() {
+/** The tenant's own name is the brand; the product name is only a caption. */
+function Brand({ hotelName }: { hotelName: string | undefined }) {
   const { collapsed, toggleCollapsed } = useSidebar();
   const mark = (
     <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-white/25 to-white/5 ring-1 ring-inset ring-white/20">
@@ -168,15 +170,28 @@ function Brand() {
   );
   if (collapsed) {
     return (
-      <button type="button" onClick={toggleCollapsed} aria-label="Expand sidebar" className="rounded-lg">
+      <button
+        type="button"
+        onClick={toggleCollapsed}
+        aria-label="Expand sidebar"
+        title={hotelName}
+        className="rounded-lg"
+      >
         {mark}
       </button>
     );
   }
   return (
-    <div className="flex min-w-0 items-center gap-2.5">
+    <div className="flex min-w-0 items-center gap-2.5" title={hotelName}>
       {mark}
-      <span className="truncate text-[15px] font-semibold tracking-tight">{APP_NAME}</span>
+      <div className="min-w-0">
+        {hotelName ? (
+          <p className="truncate text-[15px] font-semibold leading-tight tracking-tight">{hotelName}</p>
+        ) : (
+          <span className="block h-4 w-28 animate-pulse rounded bg-white/15" aria-label="Loading hotel" />
+        )}
+        <p className="truncate text-[11px] leading-tight text-sidebar-foreground/55">{APP_NAME}</p>
+      </div>
     </div>
   );
 }

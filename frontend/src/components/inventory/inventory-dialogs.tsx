@@ -204,7 +204,11 @@ export function RoomTypeDialog({ roomType, onClose }: DialogProps & { roomType: 
                   />
                 )}
               </Field>
-              <Field label="Maximum occupancy" hint="With extra beds." error={submitted ? occupancyError : null}>
+              <Field
+                label="Maximum occupancy"
+                hint="Most guests it sleeps. Above this, staff see a warning, not a block."
+                error={submitted ? occupancyError : null}
+              >
                 {(field) => (
                   <Input
                     {...field}

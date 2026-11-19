@@ -291,7 +291,7 @@ async def test_invalid_payloads_are_rejected_without_touching_inventory(
     )
     unknown_event = await deliver(client, connection, booking_event(event="booking.exploded"))
     unknown_channel = await deliver(client, connection, booking_event(channel="myspace"))
-    too_many_guests = await deliver(client, connection, booking_event(adults=9))
+    too_many_guests = await deliver(client, connection, booking_event(adults=21))
     no_guest = booking_event()
     del no_guest["guest"]
     missing_guest = await deliver(client, connection, no_guest)

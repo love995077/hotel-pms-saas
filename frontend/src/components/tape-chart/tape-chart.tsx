@@ -160,6 +160,7 @@ export function TapeChart() {
               geometry={geometry}
               roomLabel={roomLabel}
               roomTypeCode={roomType.code}
+              unassigned={room === null}
               onOpen={() => openDetails(reservation.id)}
             />
           ) : null;
@@ -372,8 +373,11 @@ export function TapeChart() {
                         roomRow(
                           `${roomType.id}-unassigned-${index}`,
                           index === 0 ? (
-                            <span className="rounded border border-dashed border-input px-1.5 py-0.5 text-xs text-muted-foreground">
-                              Unassigned
+                            <span
+                              title="Bookings without a room number yet, such as OTA bookings. Click a booking to assign a room."
+                              className="truncate rounded border border-dashed border-amber-300 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800"
+                            >
+                              Unassigned (needs room)
                             </span>
                           ) : null,
                           lane,

@@ -408,10 +408,12 @@ export function useDownloadInvoice() {
 
 // --- hotel profile ------------------------------------------------------------
 
-export function useHotel() {
+export function useHotel(enabled = true) {
   return useQuery({
     queryKey: ["hotel"],
     queryFn: ({ signal }) => api<Hotel>("/hotel", { signal }),
+    staleTime: 5 * 60_000,
+    enabled,
   });
 }
 

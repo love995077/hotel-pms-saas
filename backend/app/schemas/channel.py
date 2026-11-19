@@ -9,7 +9,7 @@ from app.core.outbound import MAX_URL_LENGTH, validate_outbound_url
 from app.models import BookingSource, ChannelProvider, ReservationStatus, WebhookEventStatus
 from app.schemas.base import CreateSchema, PatchSchema, ReadSchema
 from app.schemas.inventory import Money
-from app.schemas.reservation import validate_stay
+from app.schemas.reservation import MAX_GUESTS, validate_stay
 
 # --- webhook payloads ---------------------------------------------------------
 
@@ -39,8 +39,8 @@ class BookingCreatedEvent(_ChannelEvent):
     room_type_code: str = Field(min_length=1, max_length=20)
     check_in_date: date
     check_out_date: date
-    adults: int = Field(default=1, ge=1)
-    children: int = Field(default=0, ge=0)
+    adults: int = Field(default=1, ge=1, le=MAX_GUESTS)
+    children: int = Field(default=0, ge=0, le=MAX_GUESTS)
     # Per night, before tax. Defaults to the room type's base rate.
     rate_per_night: Money | None = None
     guest: ChannelGuest

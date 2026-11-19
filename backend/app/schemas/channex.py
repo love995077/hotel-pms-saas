@@ -20,6 +20,7 @@ from pydantic import (
 )
 
 from app.models import ReservationStatus
+from app.schemas.reservation import MAX_GUESTS
 
 # Channex ids are UUIDs; anything else is refused before it reaches a query.
 ChannexId = Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9-]+$")]
@@ -72,8 +73,8 @@ class ChannexWebhook(_Lenient):
 
 
 class ChannexOccupancy(_Lenient):
-    adults: int = Field(default=1, ge=0)
-    children: int = Field(default=0, ge=0)
+    adults: int = Field(default=1, ge=0, le=MAX_GUESTS)
+    children: int = Field(default=0, ge=0, le=MAX_GUESTS)
     infants: int = Field(default=0, ge=0)
 
 

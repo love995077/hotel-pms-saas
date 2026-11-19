@@ -1,7 +1,7 @@
 "use client";
 
 import { addDays } from "date-fns";
-import { Check, Search, UserPlus, X } from "lucide-react";
+import { Check, Search, TriangleAlert, UserPlus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -116,7 +116,11 @@ export function NewReservationDialog({
   const availability = useStayAvailability(roomTypeId, checkIn, checkOut);
   const quote = useRoomQuote(effectiveRate, nights);
 
-  const occupants = Number(adults) + Number(children);
+  // An empty Children box means none; staff should never have to type the 0.
+  const childCount = children.trim() === "" ? 0 : Number(children);
+  const occupants = Number(adults) + childCount;
+  // Not a block: the owner decides whether extra guests (an extra bed) are allowed.
+  const overCapacity = roomType !== undefined && occupants > roomType.max_occupancy;
   const errors = {
     guest:
       guest === null && guestMode === "search"
@@ -125,8 +129,6 @@ export function NewReservationDialog({
           ? "Enter the guest's first and last name."
           : null,
     dates: !datesValid ? "Check-out must be after check-in." : nights > 365 ? "A stay can't exceed 365 nights." : null,
-    occupancy:
-      roomType && occupants > roomType.max_occupancy ? `${roomType.name} sleeps at most ${roomType.max_occupancy}.` : null,
     rate: rate.trim() !== "" && !MONEY_PATTERN.test(rate.trim()) ? "Enter an amount such as 4500 or 4500.50." : null,
   };
   const soldOut = datesValid && availability.data !== undefined && availability.data <= 0;
@@ -155,7 +157,7 @@ export function NewReservationDialog({
         check_in_date: checkIn,
         check_out_date: checkOut,
         adults: Number(adults),
-        children: Number(children),
+        children: childCount,
         ...(rate.trim() !== "" ? { rate_per_night: rate.trim() } : {}),
         source,
         notes: notes.trim() || null,
@@ -410,7 +412,7 @@ export function NewReservationDialog({
                     />
                   )}
                 </Field>
-                <Field label="Children" error={errors.occupancy}>
+                <Field label="Children">
                   {(field) => (
                     <Input
                       {...field}
@@ -419,7 +421,8 @@ export function NewReservationDialog({
                       max={20}
                       value={children}
                       onChange={(event) => setChildren(event.target.value)}
-                      required
+                      onBlur={() => children.trim() === "" && setChildren("0")}
+                      placeholder="0"
                     />
                   )}
                 </Field>
@@ -441,6 +444,18 @@ export function NewReservationDialog({
                   )}
                 </Field>
               </div>
+              {overCapacity && (
+                <p
+                  role="status"
+                  className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900"
+                >
+                  <TriangleAlert className="mt-px size-4 shrink-0 text-amber-600" />
+                  <span>
+                    {occupants} guests exceeds the capacity of {roomType.max_occupancy} set for {roomType.name}. Extra
+                    bed or extra guest charges may apply; you can still confirm the reservation.
+                  </span>
+                </p>
+              )}
             </section>
 
             {/* What the stay comes to */}

@@ -159,9 +159,8 @@ async def test_create_reservation_validates_input(
     same_day = await book(client, tenant, inventory, "2027-03-10", "2027-03-10")
     reversed_dates = await book(client, tenant, inventory, "2027-03-12", "2027-03-10")
     no_adults = await book(client, tenant, inventory, "2027-03-10", "2027-03-11", adults=0)
-    too_many = await book(
-        client, tenant, inventory, "2027-03-10", "2027-03-11", adults=3, children=1
-    )
+    # Over the room type's capacity is allowed (an extra bed); 21 adults is not.
+    too_many = await book(client, tenant, inventory, "2027-03-10", "2027-03-11", adults=21)
     unknown_field = await book(
         client, tenant, inventory, "2027-03-10", "2027-03-11", status="checked_in"
     )
@@ -309,3 +308,21 @@ async def test_list_reservations_filters_by_date_window(
         params={"from_date": "2027-03-01", "to_date": "2027-03-31"},
     )
     assert [r["id"] for r in response.json()] == [march["id"]]
+
+
+async def test_booking_over_standard_capacity_is_allowed(
+    client: AsyncClient, tenant: Tenant, inventory: Inventory
+) -> None:
+    """max_occupancy is the standard capacity: staff are warned in the UI, not blocked."""
+    response = await book(
+        client, tenant, inventory, "2027-03-10", "2027-03-11", adults=3, children=2
+    )
+
+    assert response.status_code == 201, response.text
+    assert (response.json()["adults"], response.json()["children"]) == (3, 2)
+    reservation_id = response.json()["id"]
+    more = await client.patch(
+        f"/api/v1/reservations/{reservation_id}", headers=tenant.headers, json={"children": 3}
+    )
+    assert more.status_code == 200, more.text
+    assert await available(client, tenant, "2027-03-10", "2027-03-11") == [1]

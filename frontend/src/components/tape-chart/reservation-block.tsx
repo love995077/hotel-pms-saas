@@ -1,6 +1,6 @@
 "use client";
 
-import { BedDouble, CalendarDays, IndianRupee, Users } from "lucide-react";
+import { BedDouble, CalendarDays, DoorOpen, IndianRupee, Users } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatStay, nightsBetween } from "@/lib/dates";
@@ -22,11 +22,22 @@ interface ReservationBlockProps {
   geometry: BlockGeometry;
   roomLabel: string;
   roomTypeCode: string;
+  /** Shown on the unassigned row: the stay still needs a room number. */
+  unassigned?: boolean;
   onOpen: () => void;
 }
 
-export function ReservationBlock({ reservation, geometry, roomLabel, roomTypeCode, onOpen }: ReservationBlockProps) {
+export function ReservationBlock({
+  reservation,
+  geometry,
+  roomLabel,
+  roomTypeCode,
+  unassigned = false,
+  onOpen,
+}: ReservationBlockProps) {
   const source = SOURCE_STYLES[reservation.source];
+  // Only a stay that will still arrive needs a room; a cancelled one does not.
+  const needsRoom = unassigned && reservation.status === "confirmed";
   const nights = nightsBetween(reservation.check_in_date, reservation.check_out_date);
   const guests =
     `${reservation.adults} adult${reservation.adults === 1 ? "" : "s"}` +
@@ -40,7 +51,7 @@ export function ReservationBlock({ reservation, geometry, roomLabel, roomTypeCod
         <button
           type="button"
           onClick={onOpen}
-          aria-label={`${reservation.guest_name}, ${formatStay(reservation.check_in_date, reservation.check_out_date)}, ${source.label}, ${STATUS_LABELS[reservation.status]}`}
+          aria-label={`${reservation.guest_name}, ${formatStay(reservation.check_in_date, reservation.check_out_date)}, ${source.label}, ${STATUS_LABELS[reservation.status]}${needsRoom ? ", needs a room: open to assign one" : ""}`}
           style={{ left: `${geometry.left * 100}%`, width: `${geometry.width * 100}%` }}
           className="group/block absolute inset-y-[5px] z-10 px-px outline-none focus-visible:z-20 focus-visible:ring-0"
         >
@@ -68,6 +79,14 @@ export function ReservationBlock({ reservation, geometry, roomLabel, roomTypeCod
               />
             )}
             <span className="truncate">{reservation.guest_name}</span>
+            {needsRoom && (
+              <span
+                aria-hidden
+                className="ml-auto flex size-4 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-300"
+              >
+                <DoorOpen className="size-2.5" strokeWidth={2.25} />
+              </span>
+            )}
           </span>
         </button>
       </TooltipTrigger>
@@ -99,7 +118,7 @@ export function ReservationBlock({ reservation, geometry, roomLabel, roomTypeCod
             </span>
           </Detail>
           <Detail icon={<BedDouble className="size-3.5" />}>
-            {roomLabel}
+            <span className={cn(needsRoom && "font-medium text-amber-700")}>{roomLabel}</span>
             <span className="text-muted-foreground"> · {roomTypeCode}</span>
           </Detail>
           <Detail icon={<Users className="size-3.5" />}>{guests}</Detail>
@@ -112,7 +131,9 @@ export function ReservationBlock({ reservation, geometry, roomLabel, roomTypeCod
         <div className="flex items-center gap-2 border-t border-border bg-muted/50 px-3.5 py-2 text-[11.5px] text-muted-foreground">
           <span aria-hidden className={cn("size-2 rounded-full", source.accent)} />
           Booked via <span className="font-medium text-foreground">{source.label}</span>
-          <span className="ml-auto">Click to open</span>
+          <span className={cn("ml-auto", needsRoom && "font-medium text-amber-700")}>
+            {needsRoom ? "Click to assign a room" : "Click to open"}
+          </span>
         </div>
       </TooltipContent>
     </Tooltip>

@@ -64,11 +64,6 @@ async def _push_availability(session: AsyncSession, reservation: Reservation) ->
     )
 
 
-def _check_occupancy(room_type: RoomType, adults: int, children: int) -> None:
-    if adults + children > room_type.max_occupancy:
-        raise UnprocessableError(f"Room type allows at most {room_type.max_occupancy} occupants")
-
-
 async def _check_room_assignable(
     session: AsyncSession, reservation: Reservation, room_id: UUID
 ) -> None:
@@ -93,7 +88,8 @@ async def _check_room_assignable(
 async def create_reservation(session: AsyncSession, data: ReservationCreate) -> Reservation:
     room_type = await _lock_room_type(session, data.room_type_id)
     await get_or_404(session, Guest, data.guest_id)
-    _check_occupancy(room_type, data.adults, data.children)
+    # max_occupancy is the standard capacity, not a limit: staff see a warning
+    # and the owner decides whether extra guests are allowed.
     if data.external_reference is not None:
         # Checked under the room type lock, so concurrent deliveries of the
         # same channel booking cannot both get past it.
@@ -163,7 +159,6 @@ async def update_reservation(
         raise UnprocessableError(str(exc)) from exc
 
     room_type = await _lock_room_type(session, reservation.room_type_id)
-    _check_occupancy(room_type, reservation.adults, reservation.children)
 
     if inventory_changed:
         await ensure_available(
