@@ -1,21 +1,27 @@
 "use client";
 
+import { format } from "date-fns";
 import { BedDouble, CalendarDays, DoorOpen, IndianRupee, Users } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatStay, nightsBetween } from "@/lib/dates";
+import { formatStay, fromIso, nightsBetween } from "@/lib/dates";
 import { SOURCE_STYLES, STATUS_CHIP, STATUS_LABELS } from "@/lib/sources";
 import type { TapeChartReservation } from "@/lib/types";
 import { cn, formatMoney } from "@/lib/utils";
 
 export interface BlockGeometry {
-  /** Position and size as fractions (0-1) of the visible date track. */
+  /** Position and size as fractions (0-1) of the visible date track, on whole night columns. */
   left: number;
   width: number;
+  /** Nights of the stay inside the visible window. */
+  visibleNights: number;
   /** The stay starts before / ends after the visible window. */
   clippedStart: boolean;
   clippedEnd: boolean;
 }
+
+/** Gap between a card and its column edges, so back-to-back stays read as two cards. */
+const INSET = 3;
 
 interface ReservationBlockProps {
   reservation: TapeChartReservation;
@@ -48,6 +54,10 @@ export function ReservationBlock({
       ? `, ${reservation.children} child${reservation.children === 1 ? "" : "ren"}`
       : "");
 
+  // A clipped side runs to the edge of the track, showing the stay continues.
+  const insetLeft = geometry.clippedStart ? 0 : INSET;
+  const insetRight = geometry.clippedEnd ? 0 : INSET;
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -55,37 +65,50 @@ export function ReservationBlock({
           type="button"
           onClick={onOpen}
           aria-label={`${reservation.guest_name}, ${formatStay(reservation.check_in_date, reservation.check_out_date)}, ${source.label}, ${STATUS_LABELS[reservation.status]}${needsRoom ? `, needs a ${unitLower}: open to assign one` : ""}`}
-          style={{ left: `${geometry.left * 100}%`, width: `${geometry.width * 100}%` }}
-          className="group/block absolute inset-y-[5px] z-10 px-px outline-none focus-visible:z-20 focus-visible:ring-0"
+          style={{
+            left: `calc(${geometry.left * 100}% + ${insetLeft}px)`,
+            width: `calc(${geometry.width * 100}% - ${insetLeft + insetRight}px)`,
+          }}
+          className="group/block absolute inset-y-[5px] z-10 min-w-0 outline-none focus-visible:z-20 focus-visible:ring-0"
         >
           <span
             className={cn(
-              "relative flex h-full items-center gap-1.5 overflow-hidden border pl-3 pr-2 text-left text-xs font-medium shadow-[0_1px_1px_rgb(26_33_55/0.06)]",
+              "relative flex h-full min-w-0 items-center gap-1.5 overflow-hidden border pl-2.5 pr-1.5 text-left",
+              "shadow-[0_1px_2px_rgb(15_23_42/0.08),0_1px_1px_rgb(15_23_42/0.04)]",
               "transition-[transform,box-shadow,background-color] duration-150 ease-out",
               "group-hover/block:-translate-y-px group-hover/block:shadow-lift",
               "group-focus-visible/block:ring-2 group-focus-visible/block:ring-ring",
               source.block,
-              !geometry.clippedStart && "rounded-l-lg",
-              !geometry.clippedEnd && "rounded-r-lg",
-              geometry.clippedStart && "border-l-0",
-              geometry.clippedEnd && "border-r-0",
-              reservation.status === "checked_out" && "opacity-55",
+              geometry.clippedStart ? "border-l-0 pl-2" : "rounded-l-md",
+              geometry.clippedEnd ? "border-r-0" : "rounded-r-md",
+              reservation.status === "checked_out" && "opacity-60 saturate-50",
               (reservation.status === "cancelled" || reservation.status === "no_show") &&
                 "border-dashed opacity-50",
             )}
           >
-            <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", source.accent)} />
-            {reservation.status === "checked_in" && (
-              <span
-                aria-hidden
-                className="size-1.5 shrink-0 rounded-full bg-emerald-500 ring-2 ring-white/70"
-              />
+            {!geometry.clippedStart && (
+              <span aria-hidden className={cn("absolute inset-y-0 left-0 w-[3px]", source.accent)} />
             )}
-            <span className="truncate">{reservation.guest_name}</span>
+            <span className="flex min-w-0 flex-1 flex-col justify-center leading-tight">
+              <span className="flex min-w-0 items-center gap-1">
+                {reservation.status === "checked_in" && (
+                  <span
+                    aria-hidden
+                    className="size-1.5 shrink-0 rounded-full bg-emerald-500 ring-2 ring-white"
+                  />
+                )}
+                <span className="min-w-0 truncate text-[12px] font-semibold">{reservation.guest_name}</span>
+              </span>
+              {geometry.visibleNights >= 2 && (
+                <span className="mt-0.5 min-w-0 truncate text-[10.5px] font-medium opacity-70">
+                  {nights} night{nights === 1 ? "" : "s"} · {source.label}
+                </span>
+              )}
+            </span>
             {needsRoom && (
               <span
                 aria-hidden
-                className="ml-auto flex size-4 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-300"
+                className="flex size-4 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-300"
               >
                 <DoorOpen className="size-2.5" strokeWidth={2.25} />
               </span>
@@ -114,7 +137,8 @@ export function ReservationBlock({
 
         <dl className="space-y-2 px-3.5 py-3 text-[12.5px]">
           <Detail icon={<CalendarDays className="size-3.5" />}>
-            {formatStay(reservation.check_in_date, reservation.check_out_date)}
+            {format(fromIso(reservation.check_in_date), "EEE d MMM")} →{" "}
+            {format(fromIso(reservation.check_out_date), "EEE d MMM")}
             <span className="text-muted-foreground">
               {" "}
               · {nights} night{nights === 1 ? "" : "s"}

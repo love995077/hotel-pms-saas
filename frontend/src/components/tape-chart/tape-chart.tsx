@@ -1,7 +1,7 @@
 "use client";
 
 import { addDays, differenceInCalendarDays, format, isSameDay, isWeekend } from "date-fns";
-import { ChevronDown, ChevronLeft, ChevronRight, CircleAlert, LoaderCircle, Plus } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, CircleAlert, DoorOpen, LoaderCircle, Plus } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -16,9 +16,25 @@ import { kindTerms, unitGroup, useTerms } from "@/lib/terminology";
 import type { BookingSource, TapeChartReservation, TapeChartRoom, TapeChartRoomType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const LABEL_WIDTH = 188;
+/** The sticky label column: narrower on phones, set as `--label-w` on the scroller. */
+const LABEL_COLUMN = "[--label-w:9.5rem] sm:[--label-w:12.5rem]";
+const LABEL_WIDTH = "var(--label-w)";
 const MIN_DAY_WIDTH = 56;
-const ROW_HEIGHT = 44;
+const ROW_HEIGHT = 48;
+const TYPE_ROW_HEIGHT = 40;
+
+/** Column tints shared by the header, the room type rows and the day cells. */
+function columnTint(day: Date, now: Date, edge: "top" | "left") {
+  if (isSameDay(day, now)) {
+    return cn(
+      "bg-primary/[0.06]",
+      edge === "top"
+        ? "shadow-[inset_0_2px_0_rgb(var(--primary)),inset_1px_0_0_rgb(var(--primary)/0.35)]"
+        : "shadow-[inset_1px_0_0_rgb(var(--primary)/0.35)]",
+    );
+  }
+  return isWeekend(day) ? "bg-muted/40" : undefined;
+}
 const SPANS = [14, 21, 30] as const;
 
 /** Where a stay sits on the visible track, or null if it is entirely outside it. */
@@ -27,16 +43,17 @@ function geometryFor(
   windowStart: Date,
   days: number,
 ): BlockGeometry | null {
-  // A stay runs from the middle of the arrival day to the middle of the
-  // departure day, so a departure and an arrival can share one cell.
-  const start = differenceInCalendarDays(fromIso(reservation.check_in_date), windowStart) + 0.5;
-  const end = differenceInCalendarDays(fromIso(reservation.check_out_date), windowStart) + 0.5;
+  // Columns are nights: a stay fills its check-in night up to (not including)
+  // the check-out day, so 19 -> 20 Nov is exactly the 19 Nov column.
+  const start = differenceInCalendarDays(fromIso(reservation.check_in_date), windowStart);
+  const end = differenceInCalendarDays(fromIso(reservation.check_out_date), windowStart);
   const left = Math.max(start, 0);
   const right = Math.min(end, days);
   if (right <= left) return null;
   return {
     left: left / days,
     width: (right - left) / days,
+    visibleNights: right - left,
     clippedStart: start < 0,
     clippedEnd: end > days,
   };
@@ -106,11 +123,7 @@ export function TapeChart() {
   const cells = (onPick?: (day: Date) => void, label?: string) => (
     <div className="absolute inset-0 grid" style={trackStyle} aria-hidden={onPick ? undefined : true}>
       {days.map((day) => {
-        const className = cn(
-          "border-r border-border/70 last:border-r-0",
-          isWeekend(day) && "bg-muted/45",
-          isSameDay(day, now) && "bg-primary/[0.06]",
-        );
+        const className = cn("border-r border-border/60 last:border-r-0", columnTint(day, now, "left"));
         return onPick && day >= now ? (
           <button
             key={day.toISOString()}
@@ -119,10 +132,10 @@ export function TapeChart() {
             onClick={() => onPick(day)}
             className={cn(
               className,
-              "group/cell flex items-center justify-center outline-none transition-colors hover:bg-primary/10 focus-visible:bg-primary/10 focus-visible:ring-inset focus-visible:ring-offset-0",
+              "group/cell flex items-center justify-center outline-none transition-colors hover:bg-primary/5 focus-visible:bg-primary/5 focus-visible:ring-inset focus-visible:ring-offset-0",
             )}
           >
-            <Plus className="size-3.5 text-primary opacity-0 transition-opacity group-hover/cell:opacity-100 group-focus-visible/cell:opacity-100" />
+            <Plus className="size-3.5 text-primary/70 opacity-0 transition-opacity group-hover/cell:opacity-100 group-focus-visible/cell:opacity-100" />
           </button>
         ) : (
           <div key={day.toISOString()} className={className} />
@@ -139,14 +152,19 @@ export function TapeChart() {
     roomType: TapeChartRoomType,
     room: TapeChartRoom | null,
   ) => (
-    <div key={key} className="group/row relative flex border-b border-border/70" style={{ height: ROW_HEIGHT }}>
+    <div key={key} className="group/row relative flex border-b border-border/60" style={{ height: ROW_HEIGHT }}>
       <div
-        className="sticky left-0 z-20 flex shrink-0 items-center border-r border-border bg-card px-4 text-[13px] transition-colors group-hover/row:bg-accent/60"
+        className="sticky left-0 z-20 flex min-w-0 shrink-0 items-center border-r border-border bg-card px-3 text-[13px] transition-colors group-hover/row:bg-accent/60 sm:px-4"
         style={{ width: LABEL_WIDTH }}
       >
         {label}
       </div>
-      <div className="relative min-w-0 flex-1 transition-colors group-hover/row:bg-accent/25">
+      <div
+        className={cn(
+          "relative min-w-0 flex-1 transition-colors group-hover/row:bg-accent/25",
+          room === null && "bg-amber-50/40",
+        )}
+      >
         {cells(
           canBook
             ? (day) => openNew({ roomTypeId: roomType.id, roomId: room?.id, checkIn: toIso(day) })
@@ -259,12 +277,12 @@ export function TapeChart() {
           </Button>
         </div>
       ) : (
-        <div className="scroll-slim max-h-[calc(100dvh-21rem)] min-h-[20rem] overflow-auto">
-          <div style={{ minWidth: LABEL_WIDTH + span * MIN_DAY_WIDTH }}>
+        <div className={cn("scroll-slim max-h-[calc(100dvh-21rem)] min-h-[20rem] overflow-auto", LABEL_COLUMN)}>
+          <div style={{ minWidth: `calc(${LABEL_WIDTH} + ${span * MIN_DAY_WIDTH}px)` }}>
             {/* Date header: sticks to the top; its corner also sticks to the left. */}
             <div className="sticky top-0 z-30 flex border-b border-border bg-card">
               <div
-                className="sticky left-0 z-40 flex shrink-0 items-end border-r border-border bg-card px-4 pb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground"
+                className="sticky left-0 z-40 flex shrink-0 items-end border-r border-border bg-card px-3 pb-2 text-[11px] sm:px-4 font-medium uppercase tracking-[0.08em] text-muted-foreground"
                 style={{ width: LABEL_WIDTH }}
               >
                 {words.unit}
@@ -276,15 +294,14 @@ export function TapeChart() {
                     <div
                       key={day.toISOString()}
                       className={cn(
-                        "flex flex-col items-center gap-0.5 border-r border-border/70 py-2 last:border-r-0",
-                        isWeekend(day) && "bg-muted/45",
-                        isToday && "bg-primary/[0.06]",
+                        "flex flex-col items-center gap-0.5 border-r border-border/60 py-2 last:border-r-0",
+                        columnTint(day, now, "top"),
                       )}
                     >
                       <span
                         className={cn(
                           "text-[10.5px] font-medium uppercase tracking-wide",
-                          isToday ? "text-primary" : "text-muted-foreground",
+                          isToday ? "font-semibold text-primary" : "text-muted-foreground",
                         )}
                       >
                         {format(day, "EEE")}
@@ -309,15 +326,17 @@ export function TapeChart() {
             {data.room_types.map((roomType) => {
               const isCollapsed = collapsed.has(roomType.id);
               const lanes = packIntoLanes(byRoom.unassigned.get(roomType.id) ?? []);
+              const kind = kindTerms(roomType.unit_kind);
+              const KindIcon = kind.icon;
               return (
                 <div key={roomType.id}>
-                  {/* Room type row: name on the left, rooms free per night across. */}
-                  <div className="relative flex border-b border-border bg-muted/60" style={{ height: 36 }}>
+                  {/* Room type row: name on the left, units free per night across. */}
+                  <div className="relative flex border-b border-border bg-muted/50" style={{ height: TYPE_ROW_HEIGHT }}>
                     <button
                       type="button"
                       onClick={() => toggleGroup(roomType.id)}
                       aria-expanded={!isCollapsed}
-                      className="sticky left-0 z-20 flex shrink-0 items-center gap-2 border-r border-border bg-muted px-3 text-left text-[13px] font-semibold outline-none hover:bg-accent focus-visible:ring-inset focus-visible:ring-offset-0"
+                      className="sticky left-0 z-20 flex min-w-0 shrink-0 items-center gap-1.5 border-r border-border bg-muted px-2.5 text-left text-[13px] font-bold tracking-tight outline-none hover:bg-accent focus-visible:ring-inset focus-visible:ring-offset-0 sm:px-3"
                       style={{ width: LABEL_WIDTH }}
                     >
                       <ChevronDown
@@ -326,8 +345,9 @@ export function TapeChart() {
                           isCollapsed && "-rotate-90",
                         )}
                       />
-                      <span className="truncate">{roomType.name}</span>
-                      <span className="ml-auto rounded bg-card px-1.5 py-0.5 text-[10.5px] font-medium text-muted-foreground ring-1 ring-inset ring-border">
+                      <KindIcon aria-hidden className="hidden size-3.5 shrink-0 text-muted-foreground sm:block" />
+                      <span className="min-w-0 truncate">{roomType.name}</span>
+                      <span className="ml-auto hidden shrink-0 rounded bg-card px-1.5 py-0.5 text-[10.5px] font-semibold text-muted-foreground ring-1 ring-inset ring-border sm:inline">
                         {roomType.code}
                       </span>
                     </button>
@@ -335,8 +355,11 @@ export function TapeChart() {
                       {roomType.availability.map((night) => (
                         <div
                           key={night.date}
-                          title={`${night.available} of ${night.total_rooms} free on ${format(fromIso(night.date), "d MMM")}`}
-                          className="flex items-center justify-center border-r border-border/70 last:border-r-0"
+                          title={`${night.available} of ${night.total_rooms} ${kind.unitsLower} free on ${format(fromIso(night.date), "d MMM")}`}
+                          className={cn(
+                            "flex items-center justify-center border-r border-border/60 last:border-r-0",
+                            columnTint(fromIso(night.date), now, "left"),
+                          )}
                         >
                           <span
                             className={cn(
@@ -361,13 +384,13 @@ export function TapeChart() {
                         roomRow(
                           room.id,
                           <>
-                            <span className="font-medium tabular-nums">{room.room_number}</span>
-                            <span className="ml-2 truncate text-xs text-muted-foreground">
+                            <span className="shrink-0 font-semibold tabular-nums">{room.room_number}</span>
+                            <span className="ml-2 min-w-0 truncate text-xs text-muted-foreground">
                               {unitGroup(room)}
                             </span>
                           </>,
                           byRoom.assigned.get(room.id) ?? [],
-                          `${kindTerms(roomType.unit_kind).unit} ${room.room_number}`,
+                          `${kind.unit} ${room.room_number}`,
                           roomType,
                           room,
                         ),
@@ -377,14 +400,22 @@ export function TapeChart() {
                           `${roomType.id}-unassigned-${index}`,
                           index === 0 ? (
                             <span
-                              title={`Bookings without a ${kindTerms(roomType.unit_kind).unitLower} number yet, such as OTA bookings. Click a booking to assign one.`}
-                              className="truncate rounded border border-dashed border-amber-300 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800"
+                              title={`Bookings without a ${kind.unitLower} number yet, such as OTA bookings. Click a booking to assign one.`}
+                              className="flex min-w-0 items-center gap-2"
                             >
-                              Unassigned (needs {kindTerms(roomType.unit_kind).unitLower})
+                              <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-amber-50 text-amber-600 ring-1 ring-inset ring-amber-200">
+                                <DoorOpen aria-hidden className="size-3.5" />
+                              </span>
+                              <span className="min-w-0 leading-tight">
+                                <span className="block text-[12.5px] font-semibold text-amber-800">Unassigned</span>
+                                <span className="block truncate text-[11px] text-amber-700/80">
+                                  Needs {kind.unitLower}
+                                </span>
+                              </span>
                             </span>
                           ) : null,
                           lane,
-                          `No ${kindTerms(roomType.unit_kind).unitLower} assigned yet`,
+                          `No ${kind.unitLower} assigned yet`,
                           roomType,
                           null,
                         ),
